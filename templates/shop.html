@@ -1,26 +1,132 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<h2>Bookstore</h2>
-
-<div class="grid">
-    {% for book in books %}
-    <div class="card">
-        <h3>{{ book.title }}</h3>
-        <p><strong>Author:</strong> 
-            {% for a in book.authors %}
-                {{ a.author_first_name }} {{ a.author_last_name }}{% if not loop.last %}, {% endif %}
-            {% endfor %}
-        </p>
-        <p><strong>Genre:</strong> {{ book.genre }}</p>
-        <p><strong>Price:</strong> ${{ book.price }}</p>
-
-        <form method="POST" action="/add_to_cart">
-            <input type="hidden" name="isbn" value="{{ book.isbn }}">
-            <button type="submit">Add to Cart</button>
-        </form>
-    </div>
-    {% endfor %}
+<div class="page-header">
+  <h1>Our Collection</h1>
+  <span class="subtitle">{{ books|length }} titles available</span>
 </div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <input type="text" id="search" placeholder="Search by title or author…" oninput="filterBooks()">
+  <select id="genre-filter" onchange="filterBooks()">
+    <option value="">All Genres</option>
+    <option value="Fiction">Fiction</option>
+    <option value="Sci-Fi">Sci-Fi</option>
+    <option value="Romance">Romance</option>
+    <option value="Mystery">Mystery</option>
+    <option value="Fantasy">Fantasy</option>
+    <option value="Nonfiction">Nonfiction</option>
+  </select>
+  <select id="cover-filter" onchange="filterBooks()">
+    <option value="">All Formats</option>
+    <option value="Hardcover">Hardcover</option>
+    <option value="Paperback">Paperback</option>
+  </select>
+  <select id="sort-filter" onchange="filterBooks()">
+    <option value="default">Sort: Default</option>
+    <option value="price-asc">Price: Low → High</option>
+    <option value="price-desc">Price: High → Low</option>
+    <option value="year-desc">Newest First</option>
+    <option value="title-asc">Title A–Z</option>
+  </select>
+</div>
+
+<!-- Book Grid -->
+<div class="book-grid" id="book-grid">
+  {% for book in books %}
+  {% set genre_slug = book.genre | lower | replace(" ", "-") | replace("/", "-") %}
+  <div class="book-card"
+       data-title="{{ book.title | lower }}"
+       data-author="{% for a in book.authors %}{{ a.author_first_name | lower }} {{ a.author_last_name | lower }} {% endfor %}"
+       data-genre="{{ book.genre }}"
+       data-cover="{{ book.cover_type }}"
+       data-price="{{ book.price if book.price else '10.00' }}"
+       data-year="{{ book.release_year }}">
+
+    <div class="book-card-spine genre-{{ genre_slug }}"></div>
+
+    <div class="book-card-body">
+      <span class="book-genre-tag">{{ book.genre }} · {{ book.release_year }}</span>
+      <h3>{{ book.title }}</h3>
+      <p class="book-authors">
+        {% for a in book.authors %}
+          {{ a.author_first_name }} {{ a.author_last_name }}{% if not loop.last %}, {% endif %}
+        {% else %}
+          <em>Unknown Author</em>
+        {% endfor %}
+      </p>
+      <div class="book-meta">
+        <span class="book-price">${{ "%.2f"|format(book.price|float) if book.price else "—" }}</span>
+        <span class="cover-badge">{{ book.cover_type }}</span>
+      </div>
+    </div>
+
+    <div class="book-card-footer">
+      {% if session.get("user_id") %}
+      <form method="POST" action="/add_to_cart">
+        <input type="hidden" name="isbn" value="{{ book.isbn }}">
+        <button type="submit" class="btn btn-primary">＋ Add to Cart</button>
+      </form>
+      {% else %}
+      <a href="/login" class="btn btn-outline" style="width:100%;display:flex;justify-content:center;">Login to Buy</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state" style="grid-column:1/-1">
+    <div class="empty-icon">📚</div>
+    <p>No books found. Check back soon!</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div id="no-results" style="display:none;" class="empty-state">
+  <div class="empty-icon">🔍</div>
+  <p>No books match your filters.</p>
+  <button class="btn btn-outline" onclick="clearFilters()">Clear Filters</button>
+</div>
+
+<script>
+function filterBooks() {
+  const q      = document.getElementById('search').value.toLowerCase();
+  const genre  = document.getElementById('genre-filter').value;
+  const cover  = document.getElementById('cover-filter').value;
+  const sort   = document.getElementById('sort-filter').value;
+
+  const grid   = document.getElementById('book-grid');
+  const cards  = Array.from(grid.querySelectorAll('.book-card'));
+
+  let visible = cards.filter(card => {
+    const matchQ     = !q     || card.dataset.title.includes(q) || card.dataset.author.includes(q);
+    const matchGenre = !genre || card.dataset.genre === genre;
+    const matchCover = !cover || card.dataset.cover === cover;
+    return matchQ && matchGenre && matchCover;
+  });
+
+  cards.forEach(c => c.style.display = 'none');
+
+  // Sort
+  visible.sort((a, b) => {
+    if (sort === 'price-asc')  return parseFloat(a.dataset.price) - parseFloat(b.dataset.price);
+    if (sort === 'price-desc') return parseFloat(b.dataset.price) - parseFloat(a.dataset.price);
+    if (sort === 'year-desc')  return parseInt(b.dataset.year)    - parseInt(a.dataset.year);
+    if (sort === 'title-asc')  return a.dataset.title.localeCompare(b.dataset.title);
+    return 0;
+  });
+
+  visible.forEach(c => { c.style.display = 'flex'; c.style.flexDirection = 'column'; grid.appendChild(c); });
+
+  document.getElementById('no-results').style.display = visible.length === 0 ? 'block' : 'none';
+}
+
+function clearFilters() {
+  document.getElementById('search').value = '';
+  document.getElementById('genre-filter').value = '';
+  document.getElementById('cover-filter').value = '';
+  document.getElementById('sort-filter').value = 'default';
+  filterBooks();
+}
+</script>
 
 {% endblock %}

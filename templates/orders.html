@@ -1,26 +1,139 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<h2>Orders</h2>
+<div class="page-header">
+  {% if session.get("role") == "manager" %}
+    <h1>All Orders</h1>
+    <span class="subtitle">{{ orders|length }} total orders</span>
+  {% else %}
+    <h1>My Orders</h1>
+    <span class="subtitle">{{ orders|length }} order(s) placed</span>
+  {% endif %}
+</div>
 
-<table>
-    <tr>
-        <th>Order ID</th>
-        <th>Customer</th>
+<!-- Summary stats (manager only) -->
+{% if session.get("role") == "manager" %}
+<div class="stats-row" style="margin-bottom:28px;">
+  {% set processing = orders | selectattr("status", "equalto", "Processing") | list | length %}
+  {% set shipped    = orders | selectattr("status", "equalto", "Shipped")    | list | length %}
+  {% set delivered  = orders | selectattr("status", "equalto", "Delivered")  | list | length %}
+  {% set revenue    = orders | sum(attribute="total") %}
+
+  <div class="stat-card">
+    <div class="stat-label">Total Revenue</div>
+    <div class="stat-value">${{ "%.0f"|format(revenue|float) }}</div>
+    <div class="stat-sub">across {{ orders|length }} orders</div>
+  </div>
+  <div class="stat-card accent-rust">
+    <div class="stat-label">Processing</div>
+    <div class="stat-value">{{ processing }}</div>
+    <div class="stat-sub">pending fulfillment</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Shipped</div>
+    <div class="stat-value">{{ shipped }}</div>
+    <div class="stat-sub">in transit</div>
+  </div>
+  <div class="stat-card accent-sage">
+    <div class="stat-label">Delivered</div>
+    <div class="stat-value">{{ delivered }}</div>
+    <div class="stat-sub">completed</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Filter bar -->
+<div class="filter-bar">
+  <input type="text" id="ord-search" placeholder="Search by customer or order ID…" oninput="filterOrders()">
+  <select id="ord-status" onchange="filterOrders()">
+    <option value="">All Statuses</option>
+    <option value="Processing">Processing</option>
+    <option value="Shipped">Shipped</option>
+    <option value="Delivered">Delivered</option>
+  </select>
+  {% if session.get("role") == "manager" %}
+    <a href="/manager" class="btn btn-outline btn-sm">← Dashboard</a>
+  {% endif %}
+</div>
+
+{% if orders %}
+<div class="data-table-wrap">
+  <table id="orders-table">
+    <thead>
+      <tr>
+        <th>Order #</th>
+        {% if session.get("role") == "manager" %}
+          <th>Customer</th>
+          <th>Store</th>
+        {% endif %}
         <th>Date</th>
+        <th>Items</th>
         <th>Total</th>
         <th>Status</th>
-    </tr>
+        <th>Shipping</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in orders %}
+      <tr data-search="order {{ order.order_id }} {{ order.customer.first_name | lower }} {{ order.customer.last_name | lower }}"
+          data-status="{{ order.status }}">
+        <td style="font-weight:700;font-family:monospace;">#{{ order.order_id }}</td>
 
-    {% for order in orders %}
-    <tr>
-        <td>{{ order.order_id }}</td>
-        <td>{{ order.customer.first_name }} {{ order.customer.last_name }}</td>
-        <td>{{ order.date }}</td>
-        <td>${{ order.total }}</td>
-        <td>{{ order.status }}</td>
-    </tr>
-    {% endfor %}
-</table>
+        {% if session.get("role") == "manager" %}
+        <td>
+          <div style="font-weight:500;">{{ order.customer.first_name }} {{ order.customer.last_name }}</div>
+          <div style="font-size:0.76rem;color:var(--muted);">{{ order.customer.email }}</div>
+        </td>
+        <td>
+          <span style="font-size:0.78rem;background:var(--parchment);padding:2px 8px;border-radius:4px;font-weight:600;">
+            Store #{{ order.location_id }}
+          </span>
+        </td>
+        {% endif %}
+
+        <td style="font-size:0.84rem;color:var(--muted);">
+          {{ order.date.strftime('%b %d, %Y') if order.date else '—' }}
+        </td>
+        <td style="font-size:0.84rem;">
+          {{ order.items|length }} item{{ 's' if order.items|length != 1 }}
+        </td>
+        <td style="font-weight:700;">${{ "%.2f"|format(order.total|float) }}</td>
+        <td>
+          <span class="status-badge status-{{ order.status | lower }}">{{ order.status }}</span>
+        </td>
+        <td style="font-size:0.8rem;color:var(--muted);">
+          {% if order.shipping %}
+            {{ order.shipping.address[:30] }}…
+          {% else %}
+            Pending
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📋</div>
+  <p>No orders yet.</p>
+  {% if session.get("role") == "customer" %}
+  <a href="/shop" class="btn btn-primary" style="width:auto;padding:10px 28px;">Browse the Shop</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+function filterOrders() {
+  const q      = document.getElementById('ord-search').value.toLowerCase();
+  const status = document.getElementById('ord-status').value;
+  const rows   = document.querySelectorAll('#orders-table tbody tr[data-status]');
+  rows.forEach(row => {
+    const matchQ      = !q      || row.dataset.search.includes(q);
+    const matchStatus = !status || row.dataset.status === status;
+    row.style.display = matchQ && matchStatus ? '' : 'none';
+  });
+}
+</script>
 
 {% endblock %}

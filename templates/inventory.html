@@ -1,24 +1,111 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<h2>Inventory</h2>
+<div class="page-header">
+  <h1>Inventory</h1>
+  <span class="subtitle">{{ inventory|length }} records across all stores</span>
+</div>
 
-<table>
-    <tr>
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <input type="text" id="inv-search" placeholder="Search by title or ISBN…" oninput="filterInv()">
+  <select id="inv-store" onchange="filterInv()">
+    <option value="">All Stores</option>
+    {% set seen = [] %}
+    {% for item in inventory %}
+      {% if item.location_id not in seen %}
+        {% set _ = seen.append(item.location_id) %}
+        <option value="{{ item.location_id }}">Store #{{ item.location_id }}</option>
+      {% endif %}
+    {% endfor %}
+  </select>
+  <select id="inv-stock" onchange="filterInv()">
+    <option value="">All Stock Levels</option>
+    <option value="low">Low (≤ 5)</option>
+    <option value="medium">Medium (6–20)</option>
+    <option value="high">High (&gt; 20)</option>
+  </select>
+  <a href="/manager" class="btn btn-outline btn-sm">← Dashboard</a>
+</div>
+
+<div class="data-table-wrap">
+  <table id="inv-table">
+    <thead>
+      <tr>
+        <th>Store</th>
         <th>ISBN</th>
         <th>Title</th>
-        <th>Quantity</th>
+        <th>Genre</th>
+        <th>Cover</th>
+        <th>Qty</th>
         <th>Price</th>
-    </tr>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in inventory %}
+      <tr data-search="{{ item.book.title | lower }} {{ item.isbn }}"
+          data-store="{{ item.location_id }}"
+          data-qty="{{ item.quantity }}">
+        <td>
+          <span style="font-size:0.78rem;font-weight:600;background:var(--parchment);padding:2px 8px;border-radius:4px;">
+            Store #{{ item.location_id }}
+          </span>
+        </td>
+        <td style="font-size:0.78rem;color:var(--muted);font-family:monospace;">{{ item.isbn }}</td>
+        <td style="font-weight:500;">{{ item.book.title }}</td>
+        <td>{{ item.book.genre }}</td>
+        <td>{{ item.book.cover_type }}</td>
+        <td>
+          {% if item.quantity <= 5 %}
+            <span class="qty-low">{{ item.quantity }} ⚠</span>
+          {% elif item.quantity <= 20 %}
+            <span class="qty-ok">{{ item.quantity }}</span>
+          {% else %}
+            <span class="qty-high">{{ item.quantity }}</span>
+          {% endif %}
+        </td>
+        <td style="font-weight:600;">${{ "%.2f"|format(item.price|float) }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7">
+          <div class="empty-state">
+            <div class="empty-icon">📦</div>
+            <p>No inventory records found.</p>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
-    {% for item in inventory %}
-    <tr>
-        <td>{{ item.isbn }}</td>
-        <td>{{ item.book.title }}</td>
-        <td>{{ item.quantity }}</td>
-        <td>${{ item.price }}</td>
-    </tr>
-    {% endfor %}
-</table>
+<!-- Low stock summary -->
+{% set low_count = inventory | selectattr("quantity", "le", 5) | list | length %}
+{% if low_count > 0 %}
+<div class="alert alert-error" style="margin-top:20px;">
+  ⚠ <strong>{{ low_count }} item(s)</strong> have low stock (5 or fewer units). Consider restocking soon.
+</div>
+{% endif %}
+
+<script>
+function filterInv() {
+  const q     = document.getElementById('inv-search').value.toLowerCase();
+  const store = document.getElementById('inv-store').value;
+  const stock = document.getElementById('inv-stock').value;
+  const rows  = document.querySelectorAll('#inv-table tbody tr[data-qty]');
+
+  rows.forEach(row => {
+    const matchQ     = !q     || row.dataset.search.includes(q);
+    const matchStore = !store || row.dataset.store === store;
+    const qty = parseInt(row.dataset.qty);
+    let matchStock = true;
+    if (stock === 'low')    matchStock = qty <= 5;
+    if (stock === 'medium') matchStock = qty > 5  && qty <= 20;
+    if (stock === 'high')   matchStock = qty > 20;
+    row.style.display = (matchQ && matchStore && matchStock) ? '' : 'none';
+  });
+}
+</script>
 
 {% endblock %}

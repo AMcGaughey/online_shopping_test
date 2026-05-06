@@ -1,33 +1,82 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<h2>Your Cart</h2>
+<div class="page-header">
+  <h1>Your Cart</h1>
+  <span class="subtitle">{{ cart|length }} item(s)</span>
+</div>
 
 {% if cart %}
-<table>
-    <tr>
-        <th>Title</th>
-        <th>Qty</th>
-        <th>Price</th>
-        <th>Total</th>
-    </tr>
+<div style="display:grid;grid-template-columns:1fr 320px;gap:28px;align-items:start;flex-wrap:wrap;">
+
+  <!-- Items table -->
+  <div class="data-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Book</th>
+          <th>Price</th>
+          <th>Qty</th>
+          <th>Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set grand_total = namespace(val=0) %}
+        {% for item in cart %}
+        {% set subtotal = item.price * item.quantity %}
+        {% set _ = grand_total.__setattr__('val', grand_total.val + subtotal) %}
+        <tr>
+          <td>
+            <div style="font-weight:600;">{{ item.title }}</div>
+            {% if item.genre %}
+            <div style="font-size:0.76rem;color:var(--muted);">{{ item.genre }}</div>
+            {% endif %}
+          </td>
+          <td>${{ "%.2f"|format(item.price|float) }}</td>
+          <td>{{ item.quantity }}</td>
+          <td style="font-weight:700;">${{ "%.2f"|format(subtotal|float) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Order summary -->
+  <div class="cart-summary">
+    <div class="section-title">Order Summary</div>
 
     {% for item in cart %}
-    <tr>
-        <td>{{ item.title }}</td>
-        <td>{{ item.quantity }}</td>
-        <td>${{ item.price }}</td>
-        <td>${{ item.quantity * item.price }}</td>
-    </tr>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="color:var(--muted);">{{ item.title[:28] }}{% if item.title|length > 28 %}…{% endif %}</span>
+      <span>${{ "%.2f"|format((item.price * item.quantity)|float) }}</span>
+    </div>
     {% endfor %}
-</table>
 
-<form method="POST" action="/checkout">
-    <button type="submit">Checkout</button>
-</form>
+    <div class="cart-total-row">
+      <span class="cart-total-label">Total</span>
+      <span class="cart-total-value">
+        ${% set ns = namespace(t=0) %}{% for item in cart %}{% set ns.t = ns.t + item.price * item.quantity %}{% endfor %}{{ "%.2f"|format(ns.t|float) }}
+      </span>
+    </div>
+
+    <form method="POST" action="/checkout" style="margin-top:20px;">
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:13px;">
+        Place Order
+      </button>
+    </form>
+
+    <a href="/shop" class="btn btn-outline" style="width:100%;display:flex;justify-content:center;margin-top:10px;">
+      Continue Shopping
+    </a>
+  </div>
+</div>
 
 {% else %}
-<p>Your cart is empty.</p>
+<div class="empty-state">
+  <div class="empty-icon">🛒</div>
+  <p>Your cart is empty.</p>
+  <a href="/shop" class="btn btn-primary" style="width:auto;padding:10px 28px;">Browse Books</a>
+</div>
 {% endif %}
 
 {% endblock %}
