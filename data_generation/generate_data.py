@@ -1,258 +1,282 @@
-import csv
-import random
+"""
+Realistic Data Generator for onlineshopping Database
+Matches EXACTLY the schema provided by Alyssa.
+
+Generates:
+- customer
+- manager
+- publisher
+- author
+- book
+- writes
+- store
+- inventory
+- customer_order
+- items_ordered
+- shipping
+
+Outputs: generated_data.sql
+"""
+
 from faker import Faker
-from datetime import datetime
-from werkzeug.security import generate_password_hash
+import random
+from datetime import datetime, timedelta
 
-fake = Faker("en_US")   # US-style phone numbers, addresses, names
+fake = Faker("en_US")  # ensures clean US phone numbers
+
+# -----------------------------
+# CONFIGURATION
+# -----------------------------
+NUM_CUSTOMERS = 40
+NUM_MANAGERS = 5
+NUM_PUBLISHERS = 10
+NUM_AUTHORS = 30
+NUM_BOOKS = 60
+NUM_STORES = 3
+NUM_ORDERS = 120
+
+GENRES = [
+    "Fantasy", "Science Fiction", "Romance", "Mystery", "Thriller",
+    "Non-fiction", "Biography", "History", "Horror", "Young Adult"
+]
+
+COVER_TYPES = ["Hardcover", "Paperback", "Ebook"]
 
 
-# ---------------------------------------------------------
-# Helper functions
-# ---------------------------------------------------------
-
+# -----------------------------
+# HELPERS
+# -----------------------------
 def us_phone():
+    """Generate a clean US phone number."""
     return fake.numerify("(###) ###-####")
 
-def clean_email(first, last):
-    base = f"{first.lower()}.{last.lower()}"
-    domain = fake.free_email_domain()
-    return f"{base}@{domain}"
 
-def sql_escape(value):
-    """Escape single quotes for SQL."""
-    if isinstance(value, str):
-        return value.replace("'", "''")
-    return value
+def random_date(days_back=365):
+    """Random datetime within the last year."""
+    return datetime.now() - timedelta(days=random.randint(0, days_back))
+
+def gen_password():
+    return fake.numerify("##########")
 
 
-# ---------------------------------------------------------
-# CSV Writer
-# ---------------------------------------------------------
-
-def write_csv(filename, fieldnames, rows):
-    with open(filename, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-# ---------------------------------------------------------
-# SQL Writer
-# ---------------------------------------------------------
-
-def write_sql(filename, table, rows):
-    with open(filename, "w", encoding="utf-8") as f:
-        for row in rows:
-            columns = ", ".join(row.keys())
-            values = []
-
-            for v in row.values():
-                if v is None:
-                    values.append("NULL")
-                elif isinstance(v, (int, float)):
-                    values.append(str(v))
-                else:
-                    values.append(f"'{sql_escape(str(v))}'")
-
-            values_str = ", ".join(values)
-            f.write(f"INSERT INTO {table} ({columns}) VALUES ({values_str});\n")
-
-
-# ---------------------------------------------------------
-# Data Generators
-# ---------------------------------------------------------
-
-def generate_customers(n=50):
-    customers = []
-    for cid in range(1, n + 1):
+# -----------------------------
+# CUSTOMER
+# -----------------------------
+def generate_customers():
+    rows = []
+    for _ in range(NUM_CUSTOMERS):
         first = fake.first_name()
         last = fake.last_name()
-        customers.append({
-            "customer_id": cid,
-            "first_name": first,
-            "last_name": last,
-            "email": clean_email(first, last),
-            "phone": us_phone(),
-            "address": fake.address().replace("\n", ", "),
-            "password": generate_password_hash(fake.password())
-        })
-    return customers
+        email = fake.unique.email()
+        phone = us_phone()
+        address = fake.address().replace("\n", ", ")
+        password = gen_password()
+
+        rows.append(
+            f"INSERT INTO customer(first_name, last_name, email, phone, address, password) "
+            f"VALUES ('{first}', '{last}', '{email}', '{phone}', '{address}', '{password}');"
+        )
+    return rows
 
 
-def generate_publishers(n=10):
-    publishers = []
-    for pid in range(1, n + 1):
-        name = fake.company()
-        publishers.append({
-            "publisher_id": pid,
-            "publisher": name,
-            "email": clean_email(name.replace(" ", ""), "pub"),
-            "phone": us_phone(),
-            "website": fake.url()
-        })
-    return publishers
-
-
-def generate_authors(n=30):
-    authors = []
-    for aid in range(1, n + 1):
+# -----------------------------
+# MANAGER
+# -----------------------------
+def generate_managers():
+    rows = []
+    for _ in range(NUM_MANAGERS):
         first = fake.first_name()
         last = fake.last_name()
-        authors.append({
-            "author_id": aid,
-            "author_first_name": first,
-            "author_last_name": last
-        })
-    return authors
+        email = fake.unique.email()
+        password = gen_password()
+
+        rows.append(
+            f"INSERT INTO manager(first_name, last_name, email, password) "
+            f"VALUES ('{first}', '{last}', '{email}', '{password}');"
+        )
+    return rows
 
 
-def generate_books(n=40, publishers=None):
-    books = []
-    for i in range(n):
-        isbn = fake.isbn13(separator="")
-        books.append({
-            "isbn": isbn,
-            "publisher_id": random.choice(publishers)["publisher_id"],
-            "upc": fake.ean13(),
-            "title": fake.sentence(nb_words=4).replace(".", ""),
-            "genre": random.choice(["Fiction", "Sci-Fi", "Romance", "Mystery", "Fantasy", "Nonfiction"]),
-            "cover_type": random.choice(["Hardcover", "Paperback"]),
-            "release_year": random.randint(1990, 2024)
-        })
-    return books
+# -----------------------------
+# PUBLISHER
+# -----------------------------
+def generate_publishers():
+    rows = []
+    for _ in range(NUM_PUBLISHERS):
+        name = fake.company().replace("'", "")
+        email = fake.company_email()
+        phone = us_phone()
+        website = fake.url()
+
+        rows.append(
+            f"INSERT INTO publisher(publisher, email, phone, website) "
+            f"VALUES ('{name}', '{email}', '{phone}', '{website}');"
+        )
+    return rows
 
 
-def generate_writes(books, authors):
-    writes = []
-    for book in books:
-        for _ in range(random.randint(1, 3)):
-            writes.append({
-                "isbn": book["isbn"],
-                "author_id": random.choice(authors)["author_id"]
-            })
-    return writes
-
-
-def generate_managers(n=5):
-    managers = []
-    for mid in range(1, n + 1):
+# -----------------------------
+# AUTHOR
+# -----------------------------
+def generate_authors():
+    rows = []
+    for _ in range(NUM_AUTHORS):
         first = fake.first_name()
         last = fake.last_name()
-        managers.append({
-            "manager_id": mid,
-            "first_name": first,
-            "last_name": last,
-            "email": clean_email(first, last),
-            "password": fake.password()
-        })
-    return managers
+
+        rows.append(
+            f"INSERT INTO author(author_first_name, author_last_name) "
+            f"VALUES ('{first}', '{last}');"
+        )
+    return rows
 
 
-def generate_stores(managers):
-    stores = []
-    for m in managers:
-        stores.append({
-            "location_id": m["manager_id"],
-            "manager_id": m["manager_id"],
-            "address": fake.address().replace("\n", ", ")
-        })
-    return stores
+# -----------------------------
+# BOOK
+# -----------------------------
+def generate_books():
+    rows = []
+    for _ in range(NUM_BOOKS):
+        isbn = fake.isbn13()
+        upc = fake.ean13()
+        title = fake.sentence(nb_words=4).replace("'", "")
+        genre = random.choice(GENRES)
+        cover = random.choice(COVER_TYPES)
+        year = random.randint(1980, 2024)
+        publisher_id = random.randint(1, NUM_PUBLISHERS)
+
+        rows.append(
+            f"INSERT INTO book(isbn, publisher_id, upc, title, genre, cover_type, release_year) "
+            f"VALUES ('{isbn}', {publisher_id}, '{upc}', '{title}', '{genre}', '{cover}', {year});"
+        )
+    return rows
 
 
-def generate_inventory(stores, books):
-    inventory = []
-    for store in stores:
-        for book in random.sample(books, 20):
-            inventory.append({
-                "location_id": store["location_id"],
-                "isbn": book["isbn"],
-                "quantity": random.randint(1, 50),
-                "price": round(random.uniform(5, 40), 2)
-            })
-    return inventory
+# -----------------------------
+# WRITES (book-author relationship)
+# -----------------------------
+def generate_writes():
+    rows = []
+    for book_index in range(NUM_BOOKS):
+        num_authors = random.randint(1, 3)
+        for _ in range(num_authors):
+            author_id = random.randint(1, NUM_AUTHORS)
+            rows.append(
+                f"INSERT INTO writes(isbn, author_id) "
+                f"VALUES ((SELECT isbn FROM book LIMIT {book_index},1), {author_id});"
+            )
+    return rows
 
 
-def generate_orders(customers, stores, books, n=60):
+# -----------------------------
+# STORE
+# -----------------------------
+def generate_stores():
+    rows = []
+    for store_id in range(1, NUM_STORES + 1):
+        manager_id = random.randint(1, NUM_MANAGERS)
+        address = fake.address().replace("\n", ", ")
+
+        rows.append(
+            f"INSERT INTO store(location_id, manager_id, address) "
+            f"VALUES ({store_id}, {manager_id}, '{address}');"
+        )
+    return rows
+
+
+# -----------------------------
+# INVENTORY
+# -----------------------------
+def generate_inventory():
+    rows = []
+    for store_id in range(1, NUM_STORES + 1):
+        for book_index in range(NUM_BOOKS):
+            isbn_query = f"(SELECT isbn FROM book LIMIT {book_index},1)"
+            qty = random.randint(0, 50)
+            price = round(random.uniform(5, 40), 2)
+
+            rows.append(
+                f"INSERT INTO inventory(location_id, isbn, quantity, price) "
+                f"VALUES ({store_id}, {isbn_query}, {qty}, {price});"
+            )
+    return rows
+
+
+# -----------------------------
+# ORDERS + ITEMS + SHIPPING
+# -----------------------------
+def generate_orders_items_shipping():
     orders = []
     items = []
     shipping = []
 
-    for oid in range(1, n + 1):
-        customer = random.choice(customers)
-        store = random.choice(stores)
+    for order_id in range(1, NUM_ORDERS + 1):
+        customer_id = random.randint(1, NUM_CUSTOMERS)
+        location_id = random.randint(1, NUM_STORES)
+        date = random_date().strftime("%Y-%m-%d %H:%M:%S")
+        status = random.choice(["processing", "shipped", "delivered"])
 
-        orders.append({
-            "order_id": oid,
-            "location_id": store["location_id"],
-            "customer_id": customer["customer_id"],
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "total": 0,
-            "status": random.choice(["Processing", "Shipped", "Delivered"])
-        })
+        orders.append(
+            f"INSERT INTO customer_order(location_id, customer_id, date, total, status) "
+            f"VALUES ({location_id}, {customer_id}, '{date}', 0, '{status}');"
+        )
 
-        order_total = 0
-        for _ in range(random.randint(1, 5)):
-            book = random.choice(books)
-            price = round(random.uniform(5, 40), 2)
+        # Items
+        num_items = random.randint(1, 5)
+        total_price = 0
+
+        for _ in range(num_items):
+            book_index = random.randint(0, NUM_BOOKS - 1)
+            isbn_query = f"(SELECT isbn FROM book LIMIT {book_index},1)"
             qty = random.randint(1, 3)
+            price = round(random.uniform(5, 40), 2)
+            total_price += price * qty
 
-            items.append({
-                "order_id": oid,
-                "isbn": book["isbn"],
-                "quantity": qty,
-                "price": price
-            })
+            items.append(
+                f"INSERT INTO items_ordered(order_id, isbn, quantity, price) "
+                f"VALUES ({order_id}, {isbn_query}, {qty}, {price});"
+            )
 
-            order_total += price * qty
+        # Update total
+        orders.append(
+            f"UPDATE customer_order SET total = {round(total_price, 2)} WHERE order_id = {order_id};"
+        )
 
-        orders[-1]["total"] = round(order_total, 2)
+        # Shipping
+        ship_date = random_date().strftime("%Y-%m-%d %H:%M:%S")
+        address = fake.address().replace("\n", ", ")
 
-        shipping.append({
-            "shipping_id": oid,
-            "order_id": oid,
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "address": fake.address().replace("\n", ", ")
-        })
+        shipping.append(
+            f"INSERT INTO shipping(order_id, date, address) "
+            f"VALUES ({order_id}, '{ship_date}', '{address}');"
+        )
 
     return orders, items, shipping
 
 
-# ---------------------------------------------------------
-# MAIN PIPELINE
-# ---------------------------------------------------------
-
-def main():
-    customers = generate_customers()
-    publishers = generate_publishers()
-    authors = generate_authors()
-    books = generate_books(publishers=publishers)
-    writes = generate_writes(books, authors)
-    managers = generate_managers()
-    stores = generate_stores(managers)
-    inventory = generate_inventory(stores, books)
-    orders, items, shipping = generate_orders(customers, stores, books)
-
-    datasets = {
-        "customers": customers,
-        "publishers": publishers,
-        "authors": authors,
-        "books": books,
-        "writes": writes,
-        "managers": managers,
-        "stores": stores,
-        "inventory": inventory,
-        "orders": orders,
-        "items_ordered": items,
-        "shipping": shipping
-    }
-
-    for name, rows in datasets.items():
-        write_csv(f"{name}.csv", rows[0].keys(), rows)
-        write_sql(f"{name}.sql", name, rows)
-
-    print("CSV and SQL files generated successfully!")
-
-
+# -----------------------------
+# MAIN
+# -----------------------------
 if __name__ == "__main__":
-    main()
+    print("Generating realistic SQL data...")
+
+    sql = []
+    sql += generate_customers()
+    sql += generate_managers()
+    sql += generate_publishers()
+    sql += generate_authors()
+    sql += generate_books()
+    sql += generate_writes()
+    sql += generate_stores()
+    sql += generate_inventory()
+
+    orders, items, shipping = generate_orders_items_shipping()
+    sql += orders
+    sql += items
+    sql += shipping
+
+    with open("generated_data.sql", "w", encoding="utf-8") as f:
+        for line in sql:
+            f.write(line + "\n")
+
+    print("Done! File saved as generated_data.sql")

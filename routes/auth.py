@@ -1,5 +1,4 @@
 from flask import current_app as app, Blueprint, render_template, request, redirect, session
-from werkzeug.security import generate_password_hash, check_password_hash
 
 from models.customer import Customer
 from models.manager import Manager
@@ -17,28 +16,30 @@ def register():
 
     if request.method == "POST":
         first_name = request.form.get("first_name")
-        last_name = request.form.get("last_name")
-        email = request.form.get("email")
-        phone = request.form.get("phone")
-        address = request.form.get("address")
-        password = request.form.get("password")
+        last_name  = request.form.get("last_name")
+        email      = request.form.get("email")
+        phone      = request.form.get("phone")
+        address    = request.form.get("address")
+        password   = request.form.get("password")   # now plain text
 
         if not email or not password:
             error = "Email and password are required."
             return render_template("register.html", error=error)
 
+        # Check if email already exists
         existing = db.query(Customer).filter_by(email=email).first()
         if existing:
             error = "Email already registered."
             return render_template("register.html", error=error)
 
+        # Store password AS-IS (plain 8-digit numeric)
         new_customer = Customer(
             first_name=first_name,
             last_name=last_name,
             email=email,
             phone=phone,
             address=address,
-            password=generate_password_hash(password)
+            password=password
         )
 
         try:
@@ -53,7 +54,7 @@ def register():
 
 
 # ----------------------
-# LOGIN (CUSTOMER + MANAGER)
+# LOGIN (NO HASHING)
 # ----------------------
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -61,28 +62,36 @@ def login():
     error = None
 
     if request.method == "POST":
-        email = request.form.get("email")
-        password = request.form.get("password")
+        email    = request.form.get("email", "").strip()
+        password = request.form.get("password", "").strip()   # plain text
 
         if not email or not password:
             error = "Email and password are required."
             return render_template("login.html", error=error)
 
-        # Try customer login first
-        customer = db.query(Customer).filter_by(email=email).first()
-        if customer and check_password_hash(customer.password, password):
-            session["user_id"] = customer.customer_id
-            session["role"] = "customer"
-            return redirect("/shop")
-
-        # Try manager login
+        # ----------------------
+        # Try MANAGER login
+        # ----------------------
         manager = db.query(Manager).filter_by(email=email).first()
-        if manager and check_password_hash(manager.password, password):
+        if manager and manager.password == password:   # plain comparison
             session["user_id"] = manager.manager_id
-            session["role"] = "manager"
+            session["role"]    = "manager"
+            session["name"]    = f"{manager.first_name} {manager.last_name}"
             return redirect("/manager")
 
-        error = "Invalid login credentials."
+        # ----------------------
+        # Try CUSTOMER login
+        # ----------------------
+        customer = db.query(Customer).filter_by(email=email).first()
+        if customer and customer.password == password:  # plain comparison
+            session["user_id"] = customer.customer_id
+            session["role"]    = "customer"
+            session["name"]    = f"{customer.first_name} {customer.last_name}"
+            session["address"] = customer.address or ""
+            return redirect("/shop")
+
+        # If neither matched
+        error = "Invalid email or password."
 
     return render_template("login.html", error=error)
 

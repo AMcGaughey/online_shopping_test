@@ -3,29 +3,29 @@
 
 <div class="page-header">
   <h1>Manager Dashboard</h1>
-  <span class="subtitle">Welcome back — here's a quick overview</span>
+  <span class="subtitle">Welcome back{% if session.get("name") %}, {{ session["name"] }}{% endif %}</span>
 </div>
 
 <!-- Stats row -->
 <div class="stats-row">
   <div class="stat-card">
     <div class="stat-label">Total Books</div>
-    <div class="stat-value">{{ total_books if total_books else '40' }}</div>
+    <div class="stat-value">{{ total_books }}</div>
     <div class="stat-sub">titles in catalog</div>
   </div>
   <div class="stat-card accent-sage">
     <div class="stat-label">Inventory Records</div>
-    <div class="stat-value">{{ total_inventory if total_inventory else '100' }}</div>
+    <div class="stat-value">{{ total_inventory }}</div>
     <div class="stat-sub">across 5 stores</div>
   </div>
   <div class="stat-card accent-rust">
-    <div class="stat-label">Active Orders</div>
-    <div class="stat-value">{{ total_orders if total_orders else '60' }}</div>
+    <div class="stat-label">Total Orders</div>
+    <div class="stat-value">{{ total_orders }}</div>
     <div class="stat-sub">placed to date</div>
   </div>
   <div class="stat-card accent-brown">
     <div class="stat-label">Customers</div>
-    <div class="stat-value">{{ total_customers if total_customers else '50' }}</div>
+    <div class="stat-value">{{ total_customers }}</div>
     <div class="stat-sub">registered accounts</div>
   </div>
 </div>
@@ -37,7 +37,7 @@
     <span class="quicklink-icon">📦</span>
     <div>
       <div class="quicklink-label">Manage Inventory</div>
-      <div class="quicklink-sub">View stock levels, prices</div>
+      <div class="quicklink-sub">View stock levels &amp; prices</div>
     </div>
   </a>
   <a href="/orders" class="quicklink-card" style="border-left-color:var(--sage);">
@@ -52,6 +52,13 @@
     <div>
       <div class="quicklink-label">Browse Shop</div>
       <div class="quicklink-sub">Customer-facing catalog</div>
+    </div>
+  </a>
+  <a href="/manager/create" class="quicklink-card" style="border-left-color:var(--muted);">
+    <span class="quicklink-icon">👤</span>
+    <div>
+      <div class="quicklink-label">Add Manager</div>
+      <div class="quicklink-sub">Create a new manager account</div>
     </div>
   </a>
 </div>
@@ -71,11 +78,13 @@
       </tr>
     </thead>
     <tbody>
-      {% for order in recent_orders[:10] %}
+      {% for order in recent_orders %}
       <tr>
         <td style="font-weight:700;font-family:monospace;">#{{ order.order_id }}</td>
         <td>{{ order.customer.first_name }} {{ order.customer.last_name }}</td>
-        <td style="font-size:0.83rem;color:var(--muted);">{{ order.date.strftime('%b %d, %Y') if order.date else '—' }}</td>
+        <td style="font-size:0.83rem;color:var(--muted);">
+          {{ order.date.strftime('%b %d, %Y') if order.date else '—' }}
+        </td>
         <td style="font-weight:600;">${{ "%.2f"|format(order.total|float) }}</td>
         <td><span class="status-badge status-{{ order.status | lower }}">{{ order.status }}</span></td>
       </tr>
