@@ -1,0 +1,23 @@
+<!-- login.html -->
+{% extends "layout.html" %}
+{% block content %}
+
+<h2>Login</h2>
+
+{% if error %}
+    <p style="color:red;">{{ error }}</p>
+{% endif %}
+
+<form method="POST">
+    <label>Email</label>
+    <input type="email" name="email" required placeholder="Enter your email">
+
+    <label>Password</label>
+    <input type="password" name="password" required>
+
+    <button type="submit">Login</button>
+</form>
+
+<p>Don't have an account? <a href="/register">Register here</a></p>
+
+{% endblock %}

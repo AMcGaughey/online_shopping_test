@@ -1,0 +1,10 @@
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (1, 'Garner-Cantrell', 'garner-cantrell.pub@hotmail.com', '(874) 688-1043', 'https://www.rush-robinson.com/');
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (2, 'Mahoney Group', 'mahoneygroup.pub@hotmail.com', '(399) 034-8975', 'https://www.harrell.com/');
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (3, 'Stevens-Andrews', 'stevens-andrews.pub@hotmail.com', '(325) 639-5544', 'http://www.murphy.com/');
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (4, 'White, Harris and Williams', 'white,harrisandwilliams.pub@yahoo.com', '(732) 940-3145', 'https://martinez-wells.net/');
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (5, 'Peterson, Savage and Hurst', 'peterson,savageandhurst.pub@hotmail.com', '(670) 578-5040', 'http://www.murphy.com/');
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (6, 'Newman-Smith', 'newman-smith.pub@hotmail.com', '(123) 530-1469', 'http://www.park.net/');
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (7, 'Webb, Kidd and Anderson', 'webb,kiddandanderson.pub@hotmail.com', '(740) 650-1025', 'http://www.young.net/');
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (8, 'Hubbard-Bennett', 'hubbard-bennett.pub@yahoo.com', '(997) 679-3537', 'http://miller.com/');
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (9, 'Martin and Sons', 'martinandsons.pub@hotmail.com', '(849) 798-5679', 'https://www.evans.biz/');
+INSERT INTO publishers (publisher_id, publisher, email, phone, website) VALUES (10, 'Hernandez LLC', 'hernandezllc.pub@yahoo.com', '(946) 012-3566', 'https://www.johnson-peterson.com/');

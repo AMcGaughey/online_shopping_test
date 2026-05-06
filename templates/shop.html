@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<h2>Bookstore</h2>
+
+<div class="grid">
+    {% for book in books %}
+    <div class="card">
+        <h3>{{ book.title }}</h3>
+        <p><strong>Author:</strong> 
+            {% for a in book.authors %}
+                {{ a.author_first_name }} {{ a.author_last_name }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </p>
+        <p><strong>Genre:</strong> {{ book.genre }}</p>
+        <p><strong>Price:</strong> ${{ book.price }}</p>
+
+        <form method="POST" action="/add_to_cart">
+            <input type="hidden" name="isbn" value="{{ book.isbn }}">
+            <button type="submit">Add to Cart</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
