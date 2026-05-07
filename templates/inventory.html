@@ -3,12 +3,17 @@
 
 <div class="page-header">
   <h1>Inventory</h1>
-  <span class="subtitle">{{ inventory|length }} records across all stores</span>
+  {% if my_store %}
+    <span class="subtitle">Your store: {{ my_store.address }} &nbsp;·&nbsp; {{ inventory|length }} records</span>
+  {% else %}
+    <span class="subtitle">{{ inventory|length }} records across all stores</span>
+  {% endif %}
 </div>
 
 <!-- Filter Bar -->
 <div class="filter-bar">
   <input type="text" id="inv-search" placeholder="Search by title or ISBN…" oninput="filterInv()">
+  {% if not location_id %}
   <select id="inv-store" onchange="filterInv()">
     <option value="">All Stores</option>
     {% set seen = [] %}
@@ -19,6 +24,7 @@
       {% endif %}
     {% endfor %}
   </select>
+  {% endif %}
   <select id="inv-stock" onchange="filterInv()">
     <option value="">All Stock Levels</option>
     <option value="low">Low (≤ 5)</option>
@@ -28,17 +34,26 @@
   <a href="/manager" class="btn btn-outline btn-sm">← Dashboard</a>
 </div>
 
+<!-- Low stock alert -->
+{% set low_count = inventory | selectattr("quantity", "le", 5) | list | length %}
+{% if low_count > 0 %}
+<div class="alert alert-error" style="margin-bottom:16px;">
+  ⚠ <strong>{{ low_count }} item(s)</strong> have low stock (5 or fewer units). Consider restocking soon.
+</div>
+{% endif %}
+
 <div class="data-table-wrap">
   <table id="inv-table">
     <thead>
       <tr>
-        <th>Store</th>
+        {% if not location_id %}<th>Store</th>{% endif %}
         <th>ISBN</th>
         <th>Title</th>
         <th>Genre</th>
         <th>Cover</th>
         <th>Qty</th>
         <th>Price</th>
+        {% if location_id %}<th>Edit</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -46,11 +61,15 @@
       <tr data-search="{{ item.book.title | lower }} {{ item.isbn }}"
           data-store="{{ item.location_id }}"
           data-qty="{{ item.quantity }}">
+
+        {% if not location_id %}
         <td>
           <span style="font-size:0.78rem;font-weight:600;background:var(--parchment);padding:2px 8px;border-radius:4px;">
             Store #{{ item.location_id }}
           </span>
         </td>
+        {% endif %}
+
         <td style="font-size:0.78rem;color:var(--muted);font-family:monospace;">{{ item.isbn }}</td>
         <td style="font-weight:500;">{{ item.book.title }}</td>
         <td>{{ item.book.genre }}</td>
@@ -65,10 +84,19 @@
           {% endif %}
         </td>
         <td style="font-weight:600;">${{ "%.2f"|format(item.price|float) }}</td>
+
+        {% if location_id %}
+        <td>
+          <button class="btn btn-outline btn-sm"
+                  onclick="openEdit('{{ item.isbn }}', '{{ item.quantity }}', '{{ item.price }}')">
+            ✏ Edit
+          </button>
+        </td>
+        {% endif %}
       </tr>
       {% else %}
       <tr>
-        <td colspan="7">
+        <td colspan="8">
           <div class="empty-state">
             <div class="empty-icon">📦</div>
             <p>No inventory records found.</p>
@@ -80,18 +108,34 @@
   </table>
 </div>
 
-<!-- Low stock summary -->
-{% set low_count = inventory | selectattr("quantity", "le", 5) | list | length %}
-{% if low_count > 0 %}
-<div class="alert alert-error" style="margin-top:20px;">
-  ⚠ <strong>{{ low_count }} item(s)</strong> have low stock (5 or fewer units). Consider restocking soon.
+<!-- Edit Modal (only shown when manager has a location) -->
+{% if location_id %}
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:32px;min-width:320px;box-shadow:0 8px 40px rgba(0,0,0,.2);">
+    <h3 style="margin-bottom:20px;font-family:var(--font-head);color:var(--brown);">Edit Inventory</h3>
+    <form method="POST" action="/inventory/update">
+      <input type="hidden" name="isbn" id="edit-isbn">
+      <div class="form-group">
+        <label>Quantity</label>
+        <input type="number" name="quantity" id="edit-qty" min="0" required>
+      </div>
+      <div class="form-group">
+        <label>Price ($)</label>
+        <input type="number" name="price" id="edit-price" min="0" step="0.01" required>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:16px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">Save Changes</button>
+        <button type="button" class="btn btn-outline" style="flex:1;" onclick="closeEdit()">Cancel</button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endif %}
 
 <script>
 function filterInv() {
   const q     = document.getElementById('inv-search').value.toLowerCase();
-  const store = document.getElementById('inv-store').value;
+  const store = document.getElementById('inv-store') ? document.getElementById('inv-store').value : '';
   const stock = document.getElementById('inv-stock').value;
   const rows  = document.querySelectorAll('#inv-table tbody tr[data-qty]');
 
@@ -105,6 +149,17 @@ function filterInv() {
     if (stock === 'high')   matchStock = qty > 20;
     row.style.display = (matchQ && matchStore && matchStock) ? '' : 'none';
   });
+}
+
+function openEdit(isbn, qty, price) {
+  document.getElementById('edit-isbn').value  = isbn;
+  document.getElementById('edit-qty').value   = qty;
+  document.getElementById('edit-price').value = price;
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+
+function closeEdit() {
+  document.getElementById('edit-modal').style.display = 'none';
 }
 </script>
 

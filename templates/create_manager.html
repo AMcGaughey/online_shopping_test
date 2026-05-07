@@ -3,11 +3,11 @@
 
 <div class="container-narrow" style="padding-top:40px;">
   <div class="auth-card">
-    <h2>Add New Manager</h2>
-    <p class="auth-subtitle">Manager accounts can only be created by existing managers</p>
+    <h2>Assign Manager to Location</h2>
+    <p class="auth-subtitle">Reassign or set which manager runs each store</p>
 
     {% if success %}
-    <div class="alert alert-success">✓ Manager account created. They can now log in.</div>
+    <div class="alert alert-success">✓ Manager assignment updated.</div>
     {% endif %}
 
     {% if error %}
@@ -15,34 +15,68 @@
     {% endif %}
 
     <form method="POST">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-group">
-          <label>First Name</label>
-          <input type="text" name="first_name" required placeholder="Jane">
-        </div>
-        <div class="form-group">
-          <label>Last Name</label>
-          <input type="text" name="last_name" required placeholder="Smith">
-        </div>
+      <div class="form-group">
+        <label>Select Store Location</label>
+        <select name="location_id" required style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.9rem;background:white;">
+          <option value="">— Choose a location —</option>
+          {% for store in all_stores %}
+          <option value="{{ store.location_id }}">
+            Store #{{ store.location_id }} — {{ store.address }}
+            {% if store.manager %} (currently: {{ store.manager.first_name }} {{ store.manager.last_name }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="form-group">
-        <label>Email Address</label>
-        <input type="email" name="email" required placeholder="manager@example.com">
-      </div>
-
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" name="password" required placeholder="Choose a strong password">
+        <label>Assign Manager</label>
+        <select name="manager_id" required style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.9rem;background:white;">
+          <option value="">— Choose a manager —</option>
+          {% for m in all_managers %}
+          <option value="{{ m.manager_id }}">{{ m.first_name }} {{ m.last_name }} ({{ m.email }})</option>
+          {% endfor %}
+        </select>
       </div>
 
       <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:0.95rem;margin-top:6px;">
-        Create Manager Account
+        Save Assignment
       </button>
     </form>
 
-    <div style="margin-top:16px;">
-      <a href="/manager" class="btn btn-outline" style="width:100%;display:flex;justify-content:center;">
+    <!-- Current assignments summary -->
+    <div style="margin-top:28px;">
+      <div class="section-title" style="font-size:0.9rem;">Current Assignments</div>
+      <table style="width:100%;font-size:0.85rem;border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);">Store</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);">Address</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);">Manager</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for store in all_stores %}
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px;font-weight:600;">#{{ store.location_id }}</td>
+            <td style="padding:8px;color:var(--muted);">{{ store.address[:40] }}{% if store.address|length > 40 %}…{% endif %}</td>
+            <td style="padding:8px;">
+              {% if store.manager %}
+                {{ store.manager.first_name }} {{ store.manager.last_name }}
+              {% else %}
+                <em style="color:var(--muted);">Unassigned</em>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:20px;display:flex;gap:12px;">
+      <a href="/location/add" class="btn btn-outline" style="flex:1;display:flex;justify-content:center;">
+        Add Location
+      </a>
+      <a href="/manager" class="btn btn-outline" style="flex:1;display:flex;justify-content:center;">
         Back to Dashboard
       </a>
     </div>

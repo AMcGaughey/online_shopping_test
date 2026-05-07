@@ -9,20 +9,41 @@
 <!-- Filter Bar -->
 <div class="filter-bar">
   <input type="text" id="search" placeholder="Search by title or author…" oninput="filterBooks()">
+
+  <select id="location-filter" onchange="filterBooks()">
+    <option value="">All Locations</option>
+    {% for store in stores %}
+      {# Extract city from address (everything before first comma) #}
+      <option value="{{ store.location_id }}">Store #{{ store.location_id }} — {{ store.address.split(',')[0] }}</option>
+    {% endfor %}
+  </select>
+
   <select id="genre-filter" onchange="filterBooks()">
     <option value="">All Genres</option>
-    <option value="Fiction">Fiction</option>
-    <option value="Sci-Fi">Sci-Fi</option>
+    <option value="Fantasy">Fantasy</option>
+    <option value="Science Fiction">Science Fiction</option>
     <option value="Romance">Romance</option>
     <option value="Mystery">Mystery</option>
-    <option value="Fantasy">Fantasy</option>
-    <option value="Nonfiction">Nonfiction</option>
+    <option value="Thriller">Thriller</option>
+    <option value="Non-fiction">Non-fiction</option>
+    <option value="Biography">Biography</option>
+    <option value="History">History</option>
+    <option value="Horror">Horror</option>
+    <option value="Young Adult">Young Adult</option>
+    <option value="Literary Fiction">Literary Fiction</option>
+    <option value="Self-Help">Self-Help</option>
+    <option value="Graphic Novel">Graphic Novel</option>
+    <option value="Children's">Children's</option>
+    <option value="True Crime">True Crime</option>
   </select>
+
   <select id="cover-filter" onchange="filterBooks()">
     <option value="">All Formats</option>
     <option value="Hardcover">Hardcover</option>
     <option value="Paperback">Paperback</option>
+    <option value="Ebook">Ebook</option>
   </select>
+
   <select id="sort-filter" onchange="filterBooks()">
     <option value="default">Sort: Default</option>
     <option value="price-asc">Price: Low → High</option>
@@ -30,26 +51,29 @@
     <option value="year-desc">Newest First</option>
     <option value="title-asc">Title A–Z</option>
   </select>
+
+  <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear</button>
 </div>
 
 <!-- Book Grid -->
 <div class="book-grid" id="book-grid">
   {% for book in books %}
-  {% set genre_slug = book.genre | lower | replace(" ", "-") | replace("/", "-") %}
+  {% set genre_slug = book.genre | lower | replace(" ", "-") | replace("/", "-") | replace("'", "") %}
   <div class="book-card"
        data-title="{{ book.title | lower }}"
        data-author="{% for a in book.authors %}{{ a.author_first_name | lower }} {{ a.author_last_name | lower }} {% endfor %}"
        data-genre="{{ book.genre }}"
        data-cover="{{ book.cover_type }}"
        data-price="{{ book.price if book.price else '10.00' }}"
-       data-year="{{ book.release_year }}">
+       data-year="{{ book.release_year }}"
+       data-locations="{{ book.inventory | map(attribute='location_id') | join(',') if book.inventory else '' }}">
 
     <div class="book-card-spine genre-{{ genre_slug }}"></div>
 
     <div class="book-card-body">
       <span class="book-genre-tag">{{ book.genre }} · {{ book.release_year }}</span>
       <h3>{{ book.title }}</h3>
-      <p class="book-authors">
+      <p class="book-author">
         {% for a in book.authors %}
           {{ a.author_first_name }} {{ a.author_last_name }}{% if not loop.last %}, {% endif %}
         {% else %}
@@ -60,6 +84,18 @@
         <span class="book-price">${{ "%.2f"|format(book.price|float) if book.price else "—" }}</span>
         <span class="cover-badge">{{ book.cover_type }}</span>
       </div>
+
+      <!-- Availability by location -->
+      {% if book.inventory %}
+      <div class="book-locations" style="margin-top:8px;font-size:0.73rem;color:var(--muted);">
+        📍 Available at:
+        {% for inv in book.inventory %}
+          {% if inv.quantity > 0 %}
+            <span class="loc-badge">Store #{{ inv.location_id }}</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
 
     <div class="book-card-footer">
@@ -87,21 +123,36 @@
   <button class="btn btn-outline" onclick="clearFilters()">Clear Filters</button>
 </div>
 
+<style>
+.loc-badge {
+  display: inline-block;
+  background: var(--parchment);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin: 2px 2px 0 0;
+  font-size: 0.7rem;
+  color: var(--brown);
+}
+</style>
+
 <script>
 function filterBooks() {
-  const q      = document.getElementById('search').value.toLowerCase();
-  const genre  = document.getElementById('genre-filter').value;
-  const cover  = document.getElementById('cover-filter').value;
-  const sort   = document.getElementById('sort-filter').value;
+  const q        = document.getElementById('search').value.toLowerCase();
+  const location = document.getElementById('location-filter').value;
+  const genre    = document.getElementById('genre-filter').value;
+  const cover    = document.getElementById('cover-filter').value;
+  const sort     = document.getElementById('sort-filter').value;
 
-  const grid   = document.getElementById('book-grid');
-  const cards  = Array.from(grid.querySelectorAll('.book-card'));
+  const grid  = document.getElementById('book-grid');
+  const cards = Array.from(grid.querySelectorAll('.book-card'));
 
   let visible = cards.filter(card => {
-    const matchQ     = !q     || card.dataset.title.includes(q) || card.dataset.author.includes(q);
-    const matchGenre = !genre || card.dataset.genre === genre;
-    const matchCover = !cover || card.dataset.cover === cover;
-    return matchQ && matchGenre && matchCover;
+    const matchQ        = !q        || card.dataset.title.includes(q) || card.dataset.author.includes(q);
+    const matchGenre    = !genre    || card.dataset.genre === genre;
+    const matchCover    = !cover    || card.dataset.cover === cover;
+    const matchLocation = !location || (card.dataset.locations && card.dataset.locations.split(',').includes(location));
+    return matchQ && matchGenre && matchCover && matchLocation;
   });
 
   cards.forEach(c => c.style.display = 'none');
@@ -116,15 +167,15 @@ function filterBooks() {
   });
 
   visible.forEach(c => { c.style.display = 'flex'; c.style.flexDirection = 'column'; grid.appendChild(c); });
-
   document.getElementById('no-results').style.display = visible.length === 0 ? 'block' : 'none';
 }
 
 function clearFilters() {
-  document.getElementById('search').value = '';
-  document.getElementById('genre-filter').value = '';
-  document.getElementById('cover-filter').value = '';
-  document.getElementById('sort-filter').value = 'default';
+  document.getElementById('search').value        = '';
+  document.getElementById('location-filter').value = '';
+  document.getElementById('genre-filter').value  = '';
+  document.getElementById('cover-filter').value  = '';
+  document.getElementById('sort-filter').value   = 'default';
   filterBooks();
 }
 </script>

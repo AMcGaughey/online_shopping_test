@@ -3,7 +3,12 @@
 
 <div class="page-header">
   <h1>Manager Dashboard</h1>
-  <span class="subtitle">Welcome back{% if session.get("name") %}, {{ session["name"] }}{% endif %}</span>
+  <span class="subtitle">
+    Welcome back{% if session.get("name") %}, {{ session["name"] }}{% endif %}
+    {% if my_store %}
+      &nbsp;·&nbsp; 📍 {{ my_store.address.split(',')[0] }} (Store #{{ my_store.location_id }})
+    {% endif %}
+  </span>
 </div>
 
 <!-- Stats row -->
@@ -14,14 +19,14 @@
     <div class="stat-sub">titles in catalog</div>
   </div>
   <div class="stat-card accent-sage">
-    <div class="stat-label">Inventory Records</div>
+    <div class="stat-label">My Inventory</div>
     <div class="stat-value">{{ total_inventory }}</div>
-    <div class="stat-sub">across 5 stores</div>
+    <div class="stat-sub">{% if location_id %}at your store{% else %}across all stores{% endif %}</div>
   </div>
   <div class="stat-card accent-rust">
-    <div class="stat-label">Total Orders</div>
+    <div class="stat-label">{% if location_id %}My Orders{% else %}Total Orders{% endif %}</div>
     <div class="stat-value">{{ total_orders }}</div>
-    <div class="stat-sub">placed to date</div>
+    <div class="stat-sub">{% if location_id %}at your location{% else %}placed to date{% endif %}</div>
   </div>
   <div class="stat-card accent-brown">
     <div class="stat-label">Customers</div>
@@ -37,14 +42,14 @@
     <span class="quicklink-icon">📦</span>
     <div>
       <div class="quicklink-label">Manage Inventory</div>
-      <div class="quicklink-sub">View stock levels &amp; prices</div>
+      <div class="quicklink-sub">{% if location_id %}Your store's stock & prices{% else %}View all stock{% endif %}</div>
     </div>
   </a>
   <a href="/orders" class="quicklink-card" style="border-left-color:var(--sage);">
     <span class="quicklink-icon">📋</span>
     <div>
-      <div class="quicklink-label">View All Orders</div>
-      <div class="quicklink-sub">Processing, shipped, delivered</div>
+      <div class="quicklink-label">View Orders</div>
+      <div class="quicklink-sub">{% if location_id %}Your location's orders{% else %}All orders{% endif %}</div>
     </div>
   </a>
   <a href="/shop" class="quicklink-card" style="border-left-color:var(--rust);">
@@ -61,11 +66,27 @@
       <div class="quicklink-sub">Create a new manager account</div>
     </div>
   </a>
+  <a href="/location/add" class="quicklink-card" style="border-left-color:var(--amber);">
+    <span class="quicklink-icon">🏪</span>
+    <div>
+      <div class="quicklink-label">Add Location</div>
+      <div class="quicklink-sub">Open a new store location</div>
+    </div>
+  </a>
+  <a href="/location/assign" class="quicklink-card" style="border-left-color:var(--sage);">
+    <span class="quicklink-icon">🗂</span>
+    <div>
+      <div class="quicklink-label">Assign Managers</div>
+      <div class="quicklink-sub">Manage who runs each store</div>
+    </div>
+  </a>
 </div>
 
 <!-- Recent orders preview -->
 {% if recent_orders %}
-<div class="section-title" style="margin-top:36px;">Recent Orders</div>
+<div class="section-title" style="margin-top:36px;">
+  Recent Orders {% if location_id %}— Store #{{ location_id }}{% endif %}
+</div>
 <div class="data-table-wrap">
   <table>
     <thead>

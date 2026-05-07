@@ -1,6 +1,7 @@
 from flask import current_app as app, Blueprint, render_template, request, redirect, session
 from models.book import Book
 from models.inventory import Inventory
+from models.store import Store
 from models.customer_order import CustomerOrder
 from models.items_ordered import ItemsOrdered
 from models.shipping import Shipping
@@ -15,14 +16,21 @@ shop_bp = Blueprint("shop", __name__)
 @shop_bp.route("/shop")
 def shop():
     db = app.db
-    books = db.query(Book).all()
 
-    # Attach a price to each book from inventory (use min price across stores)
+    # All books with lowest price across all stores
+    books  = db.query(Book).all()
+    stores = db.query(Store).all()
+
     for book in books:
-        inv = db.query(Inventory).filter_by(isbn=book.isbn).first()
+        inv = (
+            db.query(Inventory)
+            .filter_by(isbn=book.isbn)
+            .order_by(Inventory.price)
+            .first()
+        )
         book.price = float(inv.price) if inv else None
 
-    return render_template("shop.html", books=books)
+    return render_template("shop.html", books=books, stores=stores)
 
 
 # ---------------------------
@@ -52,11 +60,10 @@ def cart():
     if "user_id" not in session:
         return redirect("/login")
 
-    db = app.db
+    db         = app.db
     cart_items = []
 
     if "cart" in session:
-        # Aggregate duplicates
         isbn_counts = {}
         for isbn in session["cart"]:
             isbn_counts[isbn] = isbn_counts.get(isbn, 0) + 1
@@ -64,7 +71,7 @@ def cart():
         for isbn, qty in isbn_counts.items():
             book = db.query(Book).filter_by(isbn=isbn).first()
             if book:
-                inv = db.query(Inventory).filter_by(isbn=isbn).first()
+                inv   = db.query(Inventory).filter_by(isbn=isbn).first()
                 price = float(inv.price) if inv else 10.00
                 cart_items.append({
                     "isbn":     isbn,
@@ -82,51 +89,45 @@ def cart():
 # ---------------------------
 @shop_bp.route("/checkout", methods=["POST"])
 def checkout():
-    db = app.db
-
     if "user_id" not in session:
         return redirect("/login")
 
-    # Build order total
-    total = 0.0
+    db          = app.db
+    address     = request.form.get("address", "")
+    location_id = int(request.form.get("location_id", 1))
+
+    if "cart" not in session or not session["cart"]:
+        return redirect("/cart")
+
     isbn_counts = {}
-    for isbn in session.get("cart", []):
+    for isbn in session["cart"]:
         isbn_counts[isbn] = isbn_counts.get(isbn, 0) + 1
 
     order = CustomerOrder(
+        location_id=location_id,
         customer_id=session["user_id"],
-        location_id=1,
         date=datetime.now(),
         total=0,
-        status="Processing"
+        status="processing",
     )
     db.add(order)
-    db.flush()  # get order_id
+    db.flush()
 
+    total = 0.0
     for isbn, qty in isbn_counts.items():
-        inv = db.query(Inventory).filter_by(isbn=isbn).first()
+        inv   = db.query(Inventory).filter_by(isbn=isbn).first()
         price = float(inv.price) if inv else 10.00
-        total += price * qty
-
-        item = ItemsOrdered(
-            order_id=order.order_id,
-            isbn=isbn,
-            quantity=qty,
-            price=price
-        )
+        item  = ItemsOrdered(order_id=order.order_id, isbn=isbn, quantity=qty, price=price)
         db.add(item)
+        total += price * qty
 
     order.total = round(total, 2)
 
-    # Create a shipping record
-    customer_address = session.get("address", "TBD")
-    ship = Shipping(
-        order_id=order.order_id,
-        date=datetime.now(),
-        address=customer_address
-    )
+    ship = Shipping(order_id=order.order_id, date=datetime.now(), address=address)
     db.add(ship)
-
     db.commit()
-    session["cart"] = []
+
+    session.pop("cart", None)
+    session.modified = True
+
     return redirect("/orders")

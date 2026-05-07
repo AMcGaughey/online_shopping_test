@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="container-narrow" style="padding-top:40px;">
+  <div class="auth-card">
+    <h2>Add New Store Location</h2>
+    <p class="auth-subtitle">Create a new store and optionally assign a manager to it</p>
+
+    {% if success %}
+    <div class="alert alert-success">✓ New location added successfully.</div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST">
+      <div class="form-group">
+        <label>Store Address</label>
+        <input type="text" name="address" required placeholder="e.g. 123 Main St, Dallas, TX 75201">
+      </div>
+
+      <div class="form-group">
+        <label>Assign Manager <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+        <select name="manager_id" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.9rem;background:white;">
+          <option value="">— Unassigned —</option>
+          {% for m in all_managers %}
+          <option value="{{ m.manager_id }}">{{ m.first_name }} {{ m.last_name }} ({{ m.email }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:0.95rem;margin-top:6px;">
+        Add Location
+      </button>
+    </form>
+
+    <div style="margin-top:16px;display:flex;gap:12px;">
+      <a href="/location/assign" class="btn btn-outline" style="flex:1;display:flex;justify-content:center;">
+        Reassign Managers
+      </a>
+      <a href="/manager" class="btn btn-outline" style="flex:1;display:flex;justify-content:center;">
+        Back to Dashboard
+      </a>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
