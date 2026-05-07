@@ -23,10 +23,7 @@
         </tr>
       </thead>
       <tbody>
-        {% set grand_total = namespace(val=0) %}
         {% for item in cart %}
-        {% set subtotal = item.price * item.quantity %}
-        {% set _ = grand_total.__setattr__('val', grand_total.val + subtotal) %}
         <tr>
           <td>
             <div style="font-weight:600;">{{ item.title }}</div>
@@ -35,7 +32,7 @@
           <td style="font-size:0.8rem;color:var(--muted);">{{ item.publisher }}</td>
           <td>${{ "%.2f"|format(item.price|float) }}</td>
           <td>{{ item.quantity }}</td>
-          <td style="font-weight:700;">${{ "%.2f"|format(subtotal|float) }}</td>
+          <td style="font-weight:700;">${{ "%.2f"|format(item.subtotal|float) }}</td>
           <td>
             <form method="POST" action="/remove_from_cart">
               <input type="hidden" name="isbn" value="{{ item.isbn }}">
@@ -55,15 +52,13 @@
     {% for item in cart %}
     <div style="display:flex;justify-content:space-between;font-size:0.85rem;padding:6px 0;border-bottom:1px solid var(--border);">
       <span style="color:var(--muted);">{{ item.title[:26] }}{% if item.title|length > 26 %}…{% endif %} ×{{ item.quantity }}</span>
-      <span>${{ "%.2f"|format((item.price * item.quantity)|float) }}</span>
+      <span>${{ "%.2f"|format(item.subtotal|float) }}</span>
     </div>
     {% endfor %}
 
     <div class="cart-total-row">
       <span class="cart-total-label">Total</span>
-      <span class="cart-total-value">
-        ${% set ns = namespace(t=0) %}{% for item in cart %}{% set ns.t = ns.t + item.price * item.quantity %}{% endfor %}{{ "%.2f"|format(ns.t|float) }}
-      </span>
+      <span class="cart-total-value">${{ "%.2f"|format(grand_total|float) }}</span>
     </div>
 
     <form method="POST" action="/checkout" style="margin-top:20px;">

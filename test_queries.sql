@@ -1,3 +1,19 @@
+SELECT COUNT(*) FROM customer;      -- should be 40
+SELECT COUNT(*) FROM manager;       -- should be 8
+SELECT COUNT(*) FROM book;          -- should be 120
+SELECT COUNT(*) FROM store;         -- should be 8
+SELECT COUNT(*) FROM inventory;     -- should be 960 (120 books × 8 stores)
+SELECT COUNT(*) FROM customer_order; -- should be 150
+
+-- Check your stores have real addresses:
+SELECT location_id, address FROM store;
+
+-- Check order statuses are varied:
+SELECT status, COUNT(*) FROM customer_order GROUP BY status;
+
+-- Check a manager's credentials so you can log in:
+SELECT manager_id, first_name, last_name, email, password FROM manager LIMIT 3;
+
 -- Top 20 selling books
 SELECT 
     o.location_id,

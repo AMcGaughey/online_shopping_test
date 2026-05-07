@@ -91,11 +91,14 @@ def cart():
     for isbn in cart_isbns:
         isbn_counts[isbn] = isbn_counts.get(isbn, 0) + 1
 
+    grand_total = 0.0
     for isbn, qty in isbn_counts.items():
         book = db.query(Book).filter_by(isbn=isbn).first()
         if book:
-            inv   = db.query(Inventory).filter_by(isbn=isbn).order_by(Inventory.price).first()
-            price = float(inv.price) if inv else 10.00
+            inv      = db.query(Inventory).filter_by(isbn=isbn).order_by(Inventory.price).first()
+            price    = float(inv.price) if inv else 10.00
+            subtotal = round(price * qty, 2)
+            grand_total += subtotal
             cart_items.append({
                 "isbn":      isbn,
                 "title":     book.title,
@@ -104,10 +107,16 @@ def cart():
                 "publisher": book.publisher.publisher if book.publisher else "—",
                 "price":     price,
                 "quantity":  qty,
+                "subtotal":  subtotal,
             })
 
     stores = db.query(Store).order_by(Store.location_id).all()
-    return render_template("cart.html", cart=cart_items, stores=stores)
+    return render_template(
+        "cart.html",
+        cart=cart_items,
+        stores=stores,
+        grand_total=round(grand_total, 2),
+    )
 
 
 # ---------------------------
