@@ -3,11 +3,11 @@
 
 <div class="page-header">
   <h1>Your Cart</h1>
-  <span class="subtitle">{{ cart|length }} item(s)</span>
+  <span class="subtitle">{{ cart|length }} unique title(s)</span>
 </div>
 
 {% if cart %}
-<div style="display:grid;grid-template-columns:1fr 320px;gap:28px;align-items:start;flex-wrap:wrap;">
+<div style="display:grid;grid-template-columns:1fr 320px;gap:28px;align-items:start;">
 
   <!-- Items table -->
   <div class="data-table-wrap">
@@ -15,9 +15,11 @@
       <thead>
         <tr>
           <th>Book</th>
+          <th>Publisher</th>
           <th>Price</th>
           <th>Qty</th>
           <th>Subtotal</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -28,26 +30,31 @@
         <tr>
           <td>
             <div style="font-weight:600;">{{ item.title }}</div>
-            {% if item.genre %}
-            <div style="font-size:0.76rem;color:var(--muted);">{{ item.genre }}</div>
-            {% endif %}
+            <div style="font-size:0.76rem;color:var(--muted);">{{ item.genre }} · {{ item.cover }}</div>
           </td>
+          <td style="font-size:0.8rem;color:var(--muted);">{{ item.publisher }}</td>
           <td>${{ "%.2f"|format(item.price|float) }}</td>
           <td>{{ item.quantity }}</td>
           <td style="font-weight:700;">${{ "%.2f"|format(subtotal|float) }}</td>
+          <td>
+            <form method="POST" action="/remove_from_cart">
+              <input type="hidden" name="isbn" value="{{ item.isbn }}">
+              <button type="submit" style="background:none;border:none;color:var(--rust);cursor:pointer;font-size:1rem;" title="Remove">✕</button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
-  <!-- Order summary -->
+  <!-- Order summary + checkout -->
   <div class="cart-summary">
     <div class="section-title">Order Summary</div>
 
     {% for item in cart %}
     <div style="display:flex;justify-content:space-between;font-size:0.85rem;padding:6px 0;border-bottom:1px solid var(--border);">
-      <span style="color:var(--muted);">{{ item.title[:28] }}{% if item.title|length > 28 %}…{% endif %}</span>
+      <span style="color:var(--muted);">{{ item.title[:26] }}{% if item.title|length > 26 %}…{% endif %} ×{{ item.quantity }}</span>
       <span>${{ "%.2f"|format((item.price * item.quantity)|float) }}</span>
     </div>
     {% endfor %}
@@ -60,7 +67,19 @@
     </div>
 
     <form method="POST" action="/checkout" style="margin-top:20px;">
-      <button type="submit" class="btn btn-primary" style="width:100%;padding:13px;">
+      <!-- Pick up / delivery location -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="font-size:0.82rem;font-weight:600;color:var(--brown);">Fulfillment Store</label>
+        <select name="location_id" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.88rem;background:white;">
+          {% for store in stores %}
+          <option value="{{ store.location_id }}">
+            Store #{{ store.location_id }} — {{ store.address.split(',')[0] }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:13px;font-size:1rem;">
         Place Order
       </button>
     </form>

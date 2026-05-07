@@ -11,17 +11,15 @@ manager_bp = Blueprint("manager", __name__)
 
 
 def require_manager():
-    """Returns a redirect if the current session is not a manager, else None."""
     if session.get("role") != "manager":
         return redirect("/login")
     return None
 
 
-def get_manager_location():
-    """Return the location_id this manager is assigned to, or None."""
+def get_manager_store():
+    """Return the Store row this manager is assigned to, or None."""
     db = app.db
-    store = db.query(Store).filter_by(manager_id=session["user_id"]).first()
-    return store.location_id if store else None
+    return db.query(Store).filter_by(manager_id=session.get("user_id")).first()
 
 
 # ---------------------------
@@ -33,23 +31,23 @@ def manager_dashboard():
     if guard:
         return guard
 
-    db          = app.db
-    location_id = get_manager_location()
+    db       = app.db
+    my_store = get_manager_store()
+    loc_id   = my_store.location_id if my_store else None
 
     total_books     = db.query(Book).count()
     total_customers = db.query(Customer).count()
 
-    if location_id:
-        total_inventory = db.query(Inventory).filter_by(location_id=location_id).count()
-        total_orders    = db.query(CustomerOrder).filter_by(location_id=location_id).count()
+    if loc_id:
+        total_inventory = db.query(Inventory).filter_by(location_id=loc_id).count()
+        total_orders    = db.query(CustomerOrder).filter_by(location_id=loc_id).count()
         recent_orders   = (
             db.query(CustomerOrder)
-            .filter_by(location_id=location_id)
+            .filter_by(location_id=loc_id)
             .order_by(CustomerOrder.order_id.desc())
             .limit(10)
             .all()
         )
-        my_store = db.query(Store).filter_by(location_id=location_id).first()
     else:
         total_inventory = db.query(Inventory).count()
         total_orders    = db.query(CustomerOrder).count()
@@ -59,7 +57,6 @@ def manager_dashboard():
             .limit(10)
             .all()
         )
-        my_store = None
 
     return render_template(
         "manager_dashboard.html",
@@ -69,12 +66,12 @@ def manager_dashboard():
         total_customers=total_customers,
         recent_orders=recent_orders,
         my_store=my_store,
-        location_id=location_id,
+        location_id=loc_id,
     )
 
 
 # ---------------------------
-# INVENTORY PAGE (scoped to manager's location)
+# INVENTORY PAGE (scoped to manager's store)
 # ---------------------------
 @manager_bp.route("/inventory")
 def inventory():
@@ -82,21 +79,29 @@ def inventory():
     if guard:
         return guard
 
-    db          = app.db
-    location_id = get_manager_location()
+    db       = app.db
+    my_store = get_manager_store()
+    loc_id   = my_store.location_id if my_store else None
 
-    if location_id:
-        items    = db.query(Inventory).filter_by(location_id=location_id).all()
-        my_store = db.query(Store).filter_by(location_id=location_id).first()
+    if loc_id:
+        items = db.query(Inventory).filter_by(location_id=loc_id).all()
     else:
-        items    = db.query(Inventory).all()
-        my_store = None
+        items = db.query(Inventory).all()
 
-    return render_template("inventory.html", inventory=items, my_store=my_store, location_id=location_id)
+    # All books (for the "add item" dropdown)
+    all_books = db.query(Book).order_by(Book.title).all()
+
+    return render_template(
+        "inventory.html",
+        inventory=items,
+        my_store=my_store,
+        location_id=loc_id,
+        all_books=all_books,
+    )
 
 
 # ---------------------------
-# UPDATE INVENTORY ITEM (price / quantity) — own store only
+# UPDATE INVENTORY (qty + price) — own store only
 # ---------------------------
 @manager_bp.route("/inventory/update", methods=["POST"])
 def update_inventory():
@@ -104,22 +109,23 @@ def update_inventory():
     if guard:
         return guard
 
-    db          = app.db
-    location_id = get_manager_location()
-    isbn        = request.form.get("isbn", "").strip()
-    qty         = request.form.get("quantity", "").strip()
-    price       = request.form.get("price", "").strip()
+    db     = app.db
+    store  = get_manager_store()
+    loc_id = store.location_id if store else None
+    isbn   = request.form.get("isbn", "").strip()
 
-    if not location_id or not isbn:
+    if not loc_id or not isbn:
         return redirect("/inventory")
 
-    item = db.query(Inventory).filter_by(location_id=location_id, isbn=isbn).first()
+    item = db.query(Inventory).filter_by(location_id=loc_id, isbn=isbn).first()
     if item:
-        if qty.isdigit():
-            item.quantity = int(qty)
         try:
-            item.price = float(price)
-        except (ValueError, TypeError):
+            item.quantity = int(request.form.get("quantity", item.quantity))
+        except ValueError:
+            pass
+        try:
+            item.price = float(request.form.get("price", item.price))
+        except ValueError:
             pass
         db.commit()
 
@@ -127,7 +133,7 @@ def update_inventory():
 
 
 # ---------------------------
-# ADD BOOK TO OWN INVENTORY
+# MANUALLY ADD INVENTORY ITEM — own store only
 # ---------------------------
 @manager_bp.route("/inventory/add", methods=["POST"])
 def add_inventory():
@@ -135,35 +141,39 @@ def add_inventory():
     if guard:
         return guard
 
-    db          = app.db
-    location_id = get_manager_location()
-    isbn        = request.form.get("isbn", "").strip()
-    qty         = request.form.get("quantity", "0").strip()
-    price       = request.form.get("price", "0").strip()
+    db     = app.db
+    store  = get_manager_store()
+    loc_id = store.location_id if store else None
+    isbn   = request.form.get("isbn", "").strip()
 
-    if not location_id or not isbn:
+    if not loc_id or not isbn:
         return redirect("/inventory")
 
+    # Confirm the book exists
     book = db.query(Book).filter_by(isbn=isbn).first()
     if not book:
         return redirect("/inventory")
 
-    existing = db.query(Inventory).filter_by(location_id=location_id, isbn=isbn).first()
-    if not existing:
-        new_item = Inventory(
-            location_id=location_id,
-            isbn=isbn,
-            quantity=int(qty) if qty.isdigit() else 0,
-            price=float(price) if price else 0.0,
-        )
-        db.add(new_item)
-        db.commit()
+    # If already in inventory, just update; otherwise insert
+    existing = db.query(Inventory).filter_by(location_id=loc_id, isbn=isbn).first()
+    try:
+        qty   = int(request.form.get("quantity", 0))
+        price = float(request.form.get("price", 0.00))
+    except ValueError:
+        return redirect("/inventory")
 
+    if existing:
+        existing.quantity = qty
+        existing.price    = price
+    else:
+        db.add(Inventory(location_id=loc_id, isbn=isbn, quantity=qty, price=price))
+
+    db.commit()
     return redirect("/inventory")
 
 
 # ---------------------------
-# ORDERS PAGE (manager sees only their store's orders)
+# ORDERS (scoped to manager's store)
 # ---------------------------
 @manager_bp.route("/orders")
 def orders():
@@ -173,11 +183,12 @@ def orders():
     db = app.db
 
     if session.get("role") == "manager":
-        location_id = get_manager_location()
-        if location_id:
+        store  = get_manager_store()
+        loc_id = store.location_id if store else None
+        if loc_id:
             all_orders = (
                 db.query(CustomerOrder)
-                .filter_by(location_id=location_id)
+                .filter_by(location_id=loc_id)
                 .order_by(CustomerOrder.order_id.desc())
                 .all()
             )
@@ -199,6 +210,33 @@ def orders():
 
 
 # ---------------------------
+# UPDATE ORDER STATUS (manager only)
+# ---------------------------
+@manager_bp.route("/orders/update_status", methods=["POST"])
+def update_order_status():
+    guard = require_manager()
+    if guard:
+        return guard
+
+    db       = app.db
+    store    = get_manager_store()
+    loc_id   = store.location_id if store else None
+    order_id = request.form.get("order_id")
+    new_status = request.form.get("status", "").strip()
+
+    if order_id and new_status:
+        q = db.query(CustomerOrder).filter_by(order_id=int(order_id))
+        if loc_id:
+            q = q.filter_by(location_id=loc_id)   # can't update other stores
+        order = q.first()
+        if order:
+            order.status = new_status
+            db.commit()
+
+    return redirect("/orders")
+
+
+# ---------------------------
 # ADD NEW LOCATION (store)
 # ---------------------------
 @manager_bp.route("/location/add", methods=["GET", "POST"])
@@ -207,11 +245,9 @@ def add_location():
     if guard:
         return guard
 
-    db      = app.db
-    error   = None
-    success = False
-
-    # All managers for the assignment dropdown
+    db           = app.db
+    error        = None
+    success      = False
     all_managers = db.query(Manager).all()
 
     if request.method == "POST":
@@ -246,11 +282,10 @@ def assign_manager():
     if guard:
         return guard
 
-    db      = app.db
-    error   = None
-    success = False
-
-    all_stores   = db.query(Store).all()
+    db           = app.db
+    error        = None
+    success      = False
+    all_stores   = db.query(Store).order_by(Store.location_id).all()
     all_managers = db.query(Manager).all()
 
     if request.method == "POST":
@@ -267,6 +302,8 @@ def assign_manager():
                 success = True
             else:
                 error = "Location not found."
+        # Refresh after commit
+        all_stores = db.query(Store).order_by(Store.location_id).all()
 
     return render_template(
         "assign_manager.html",
@@ -278,7 +315,7 @@ def assign_manager():
 
 
 # ---------------------------
-# CREATE MANAGER (manager-only)
+# CREATE MANAGER
 # ---------------------------
 @manager_bp.route("/manager/create", methods=["GET", "POST"])
 def create_manager():
@@ -301,13 +338,12 @@ def create_manager():
         elif db.query(Manager).filter_by(email=email).first():
             error = "A manager with that email already exists."
         else:
-            new_manager = Manager(
+            db.add(Manager(
                 first_name=first_name,
                 last_name=last_name,
                 email=email,
-                password=generate_password_hash(password),
-            )
-            db.add(new_manager)
+                password=password,   # stored plain to match existing auth
+            ))
             db.commit()
             success = True
 

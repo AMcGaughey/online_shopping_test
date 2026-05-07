@@ -9,15 +9,18 @@
 <body>
 
 <nav>
-  <a href="/" class="nav-brand">Bookshelf</a>
-
+  <!-- Logo routes to dashboard based on role, never forces logout -->
   {% if session.get("role") == "manager" %}
+    <a href="/manager" class="nav-brand">Bookshelf</a>
     <a href="/manager">Dashboard</a>
     <a href="/inventory">Inventory</a>
     <a href="/orders">Orders</a>
+    <a href="/location/add">Add Location</a>
+    <a href="/location/assign">Assign Managers</a>
     <a href="/logout" class="nav-logout">Sign Out</a>
 
   {% elif session.get("role") == "customer" %}
+    <a href="/shop" class="nav-brand">Bookshelf</a>
     <a href="/shop">Shop</a>
     <a href="/cart" class="nav-cart">
       Cart
@@ -29,6 +32,7 @@
     <a href="/logout" class="nav-logout">Sign Out</a>
 
   {% else %}
+    <a href="/shop" class="nav-brand">Bookshelf</a>
     <a href="/shop">Shop</a>
     <a href="/login">Login</a>
     <a href="/register">Register</a>

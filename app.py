@@ -1,4 +1,4 @@
-from flask import Flask, redirect
+from flask import Flask, redirect, session, g
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import SQLALCHEMY_DATABASE_URI, SECRET_KEY
@@ -15,45 +15,51 @@ app.secret_key = SECRET_KEY
 # ---------------------------------------
 # DATABASE SETUP
 # ---------------------------------------
-# Create SQLAlchemy engine for MySQL
 engine = create_engine(
     SQLALCHEMY_DATABASE_URI,
     echo=False,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
 )
 
-# Create session factory
 SessionLocal = sessionmaker(bind=engine)
-
-# Create tables if they don't exist
 Base.metadata.create_all(engine)
 
+
 # ---------------------------------------
-# DB SESSION PER REQUEST
+# DB SESSION PER REQUEST  (thread-safe via g)
 # ---------------------------------------
 @app.before_request
-def create_session():
-    """
-    Creates a new database session before each request.
-    Accessible via: app.db
-    """
-    app.db = SessionLocal()
+def open_db():
+    g.db = SessionLocal()
 
 @app.teardown_request
-def shutdown_session(exception=None):
-    """
-    Closes the database session after each request.
-    """
-    db = getattr(app, "db", None)
+def close_db(exception=None):
+    db = g.pop("db", None)
     if db:
+        if exception:
+            db.rollback()
         db.close()
 
+# Expose g.db as app.db so existing routes don't need changing
+@app.before_request
+def expose_db():
+    app.db = g.get("db")
+
+
 # ---------------------------------------
-# HOME ROUTE
+# HOME ROUTE — send each role to their page
 # ---------------------------------------
 @app.route("/")
 def home():
+    role = session.get("role")
+    if role == "manager":
+        return redirect("/manager")
+    if role == "customer":
+        return redirect("/shop")
     return redirect("/login")
+
 
 # ---------------------------------------
 # REGISTER BLUEPRINTS
@@ -62,8 +68,9 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(shop_bp)
 app.register_blueprint(manager_bp)
 
+
 # ---------------------------------------
 # RUN APP
 # ---------------------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, threaded=True)

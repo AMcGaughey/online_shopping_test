@@ -17,7 +17,7 @@ NUM_ORDERS      = 150
 GENRES = [
     "Fantasy", "Science Fiction", "Romance", "Mystery", "Thriller",
     "Non-fiction", "Biography", "History", "Horror", "Young Adult",
-    "Literary Fiction", "Self-Help", "Graphic Novel", "Children's",
+    "Literary Fiction", "Self-Help", "Graphic Novel", "Childrens",
     "True Crime",
 ]
 

@@ -8,33 +8,23 @@
 
 <!-- Filter Bar -->
 <div class="filter-bar">
-  <input type="text" id="search" placeholder="Search by title or author…" oninput="filterBooks()">
+  <input type="text" id="search" placeholder="Search by title, author, or publisher…" oninput="filterBooks()">
 
   <select id="location-filter" onchange="filterBooks()">
     <option value="">All Locations</option>
     {% for store in stores %}
-      {# Extract city from address (everything before first comma) #}
-      <option value="{{ store.location_id }}">Store #{{ store.location_id }} — {{ store.address.split(',')[0] }}</option>
+      <option value="{{ store.location_id }}">
+        Store #{{ store.location_id }} — {{ store.address.split(',')[0] }}
+      </option>
     {% endfor %}
   </select>
 
   <select id="genre-filter" onchange="filterBooks()">
     <option value="">All Genres</option>
-    <option value="Fantasy">Fantasy</option>
-    <option value="Science Fiction">Science Fiction</option>
-    <option value="Romance">Romance</option>
-    <option value="Mystery">Mystery</option>
-    <option value="Thriller">Thriller</option>
-    <option value="Non-fiction">Non-fiction</option>
-    <option value="Biography">Biography</option>
-    <option value="History">History</option>
-    <option value="Horror">Horror</option>
-    <option value="Young Adult">Young Adult</option>
-    <option value="Literary Fiction">Literary Fiction</option>
-    <option value="Self-Help">Self-Help</option>
-    <option value="Graphic Novel">Graphic Novel</option>
-    <option value="Children's">Children's</option>
-    <option value="True Crime">True Crime</option>
+    {% set genres = books | map(attribute='genre') | unique | sort %}
+    {% for g in genres %}
+      <option value="{{ g }}">{{ g }}</option>
+    {% endfor %}
   </select>
 
   <select id="cover-filter" onchange="filterBooks()">
@@ -59,20 +49,23 @@
 <div class="book-grid" id="book-grid">
   {% for book in books %}
   {% set genre_slug = book.genre | lower | replace(" ", "-") | replace("/", "-") | replace("'", "") %}
+  {% set pub_name   = book.publisher.publisher if book.publisher else "" %}
   <div class="book-card"
        data-title="{{ book.title | lower }}"
        data-author="{% for a in book.authors %}{{ a.author_first_name | lower }} {{ a.author_last_name | lower }} {% endfor %}"
+       data-publisher="{{ pub_name | lower }}"
        data-genre="{{ book.genre }}"
        data-cover="{{ book.cover_type }}"
-       data-price="{{ book.price if book.price else '10.00' }}"
+       data-price="{{ book.price if book.price is not none else '0' }}"
        data-year="{{ book.release_year }}"
-       data-locations="{{ book.inventory | map(attribute='location_id') | join(',') if book.inventory else '' }}">
+       data-locations="{{ book.stock_locations | join(',') if book.stock_locations else '' }}">
 
     <div class="book-card-spine genre-{{ genre_slug }}"></div>
 
     <div class="book-card-body">
       <span class="book-genre-tag">{{ book.genre }} · {{ book.release_year }}</span>
       <h3>{{ book.title }}</h3>
+
       <p class="book-author">
         {% for a in book.authors %}
           {{ a.author_first_name }} {{ a.author_last_name }}{% if not loop.last %}, {% endif %}
@@ -80,31 +73,44 @@
           <em>Unknown Author</em>
         {% endfor %}
       </p>
+
+      {% if book.publisher %}
+      <p style="font-size:0.74rem;color:var(--muted);margin:2px 0 6px;">
+        🏢 {{ book.publisher.publisher }}
+      </p>
+      {% endif %}
+
       <div class="book-meta">
-        <span class="book-price">${{ "%.2f"|format(book.price|float) if book.price else "—" }}</span>
+        {% if book.price is not none %}
+          <span class="book-price">${{ "%.2f"|format(book.price|float) }}</span>
+        {% else %}
+          <span class="book-price" style="color:var(--muted);">—</span>
+        {% endif %}
         <span class="cover-badge">{{ book.cover_type }}</span>
       </div>
 
-      <!-- Availability by location -->
-      {% if book.inventory %}
-      <div class="book-locations" style="margin-top:8px;font-size:0.73rem;color:var(--muted);">
-        📍 Available at:
-        {% for inv in book.inventory %}
-          {% if inv.quantity > 0 %}
-            <span class="loc-badge">Store #{{ inv.location_id }}</span>
-          {% endif %}
+      <!-- Location availability -->
+      {% if book.stock_locations %}
+      <div style="margin-top:8px;font-size:0.72rem;color:var(--muted);">
+        📍 In stock at:
+        {% for loc_id in book.stock_locations %}
+          {% for store in stores if store.location_id == loc_id %}
+            <span class="loc-badge">{{ store.address.split(',')[0] }}</span>
+          {% endfor %}
         {% endfor %}
       </div>
+      {% else %}
+      <div style="margin-top:8px;font-size:0.72rem;color:var(--rust);">Out of stock</div>
       {% endif %}
     </div>
 
     <div class="book-card-footer">
-      {% if session.get("user_id") %}
+      {% if session.get("role") == "customer" %}
       <form method="POST" action="/add_to_cart">
         <input type="hidden" name="isbn" value="{{ book.isbn }}">
         <button type="submit" class="btn btn-primary">＋ Add to Cart</button>
       </form>
-      {% else %}
+      {% elif not session.get("user_id") %}
       <a href="/login" class="btn btn-outline" style="width:100%;display:flex;justify-content:center;">Login to Buy</a>
       {% endif %}
     </div>
@@ -129,9 +135,9 @@
   background: var(--parchment);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 1px 6px;
+  padding: 1px 5px;
   margin: 2px 2px 0 0;
-  font-size: 0.7rem;
+  font-size: 0.69rem;
   color: var(--brown);
 }
 </style>
@@ -148,10 +154,14 @@ function filterBooks() {
   const cards = Array.from(grid.querySelectorAll('.book-card'));
 
   let visible = cards.filter(card => {
-    const matchQ        = !q        || card.dataset.title.includes(q) || card.dataset.author.includes(q);
+    const searchStr = (card.dataset.title || '') + ' ' +
+                      (card.dataset.author || '') + ' ' +
+                      (card.dataset.publisher || '');
+    const matchQ        = !q        || searchStr.includes(q);
     const matchGenre    = !genre    || card.dataset.genre === genre;
     const matchCover    = !cover    || card.dataset.cover === cover;
-    const matchLocation = !location || (card.dataset.locations && card.dataset.locations.split(',').includes(location));
+    const locs          = card.dataset.locations ? card.dataset.locations.split(',') : [];
+    const matchLocation = !location || locs.includes(location);
     return matchQ && matchGenre && matchCover && matchLocation;
   });
 
@@ -159,23 +169,28 @@ function filterBooks() {
 
   // Sort
   visible.sort((a, b) => {
-    if (sort === 'price-asc')  return parseFloat(a.dataset.price) - parseFloat(b.dataset.price);
-    if (sort === 'price-desc') return parseFloat(b.dataset.price) - parseFloat(a.dataset.price);
-    if (sort === 'year-desc')  return parseInt(b.dataset.year)    - parseInt(a.dataset.year);
-    if (sort === 'title-asc')  return a.dataset.title.localeCompare(b.dataset.title);
+    if (sort === 'price-asc')  return parseFloat(a.dataset.price || 0) - parseFloat(b.dataset.price || 0);
+    if (sort === 'price-desc') return parseFloat(b.dataset.price || 0) - parseFloat(a.dataset.price || 0);
+    if (sort === 'year-desc')  return parseInt(b.dataset.year)         - parseInt(a.dataset.year);
+    if (sort === 'title-asc')  return (a.dataset.title || '').localeCompare(b.dataset.title || '');
     return 0;
   });
 
-  visible.forEach(c => { c.style.display = 'flex'; c.style.flexDirection = 'column'; grid.appendChild(c); });
+  visible.forEach(c => {
+    c.style.display = 'flex';
+    c.style.flexDirection = 'column';
+    grid.appendChild(c);
+  });
+
   document.getElementById('no-results').style.display = visible.length === 0 ? 'block' : 'none';
 }
 
 function clearFilters() {
-  document.getElementById('search').value        = '';
-  document.getElementById('location-filter').value = '';
-  document.getElementById('genre-filter').value  = '';
-  document.getElementById('cover-filter').value  = '';
-  document.getElementById('sort-filter').value   = 'default';
+  ['search','location-filter','genre-filter','cover-filter'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('sort-filter').value = 'default';
   filterBooks();
 }
 </script>

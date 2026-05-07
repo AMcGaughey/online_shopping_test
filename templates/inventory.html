@@ -4,11 +4,59 @@
 <div class="page-header">
   <h1>Inventory</h1>
   {% if my_store %}
-    <span class="subtitle">Your store: {{ my_store.address }} &nbsp;·&nbsp; {{ inventory|length }} records</span>
+    <span class="subtitle">
+      📍 {{ my_store.address.split(',')[0] }} (Store #{{ my_store.location_id }})
+      &nbsp;·&nbsp; {{ inventory|length }} records
+    </span>
   {% else %}
     <span class="subtitle">{{ inventory|length }} records across all stores</span>
   {% endif %}
 </div>
+
+<!-- Low stock alert -->
+{% set low_count = inventory | selectattr("quantity", "le", 5) | list | length %}
+{% if low_count > 0 %}
+<div class="alert alert-error" style="margin-bottom:16px;">
+  ⚠ <strong>{{ low_count }} item(s)</strong> are low in stock (≤ 5 units).
+</div>
+{% endif %}
+
+<!-- ── ADD ITEM FORM (only when manager has a store) ── -->
+{% if location_id %}
+<div style="background:white;border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;box-shadow:var(--shadow);">
+  <div class="section-title" style="margin-bottom:14px;">➕ Add / Update Inventory Item</div>
+  <form method="POST" action="/inventory/add"
+        style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+
+    <div class="form-group" style="flex:2;min-width:200px;margin-bottom:0;">
+      <label>Book (select by title)</label>
+      <select name="isbn" required
+              style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.88rem;background:white;">
+        <option value="">— Choose a book —</option>
+        {% for book in all_books %}
+        <option value="{{ book.isbn }}">{{ book.title }} — {{ book.genre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" style="flex:1;min-width:90px;margin-bottom:0;">
+      <label>Quantity</label>
+      <input type="number" name="quantity" min="0" value="1" required
+             style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.88rem;">
+    </div>
+
+    <div class="form-group" style="flex:1;min-width:90px;margin-bottom:0;">
+      <label>Price ($)</label>
+      <input type="number" name="price" min="0" step="0.01" value="9.99" required
+             style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.88rem;">
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="padding:10px 20px;white-space:nowrap;">
+      Add Item
+    </button>
+  </form>
+</div>
+{% endif %}
 
 <!-- Filter Bar -->
 <div class="filter-bar">
@@ -34,14 +82,6 @@
   <a href="/manager" class="btn btn-outline btn-sm">← Dashboard</a>
 </div>
 
-<!-- Low stock alert -->
-{% set low_count = inventory | selectattr("quantity", "le", 5) | list | length %}
-{% if low_count > 0 %}
-<div class="alert alert-error" style="margin-bottom:16px;">
-  ⚠ <strong>{{ low_count }} item(s)</strong> have low stock (5 or fewer units). Consider restocking soon.
-</div>
-{% endif %}
-
 <div class="data-table-wrap">
   <table id="inv-table">
     <thead>
@@ -50,6 +90,7 @@
         <th>ISBN</th>
         <th>Title</th>
         <th>Genre</th>
+        <th>Publisher</th>
         <th>Cover</th>
         <th>Qty</th>
         <th>Price</th>
@@ -70,9 +111,12 @@
         </td>
         {% endif %}
 
-        <td style="font-size:0.78rem;color:var(--muted);font-family:monospace;">{{ item.isbn }}</td>
+        <td style="font-size:0.75rem;color:var(--muted);font-family:monospace;">{{ item.isbn }}</td>
         <td style="font-weight:500;">{{ item.book.title }}</td>
         <td>{{ item.book.genre }}</td>
+        <td style="font-size:0.8rem;color:var(--muted);">
+          {{ item.book.publisher.publisher if item.book.publisher else "—" }}
+        </td>
         <td>{{ item.book.cover_type }}</td>
         <td>
           {% if item.quantity <= 5 %}
@@ -87,8 +131,8 @@
 
         {% if location_id %}
         <td>
-          <button class="btn btn-outline btn-sm"
-                  onclick="openEdit('{{ item.isbn }}', '{{ item.quantity }}', '{{ item.price }}')">
+         <button class="btn btn-outline btn-sm"
+            onclick="openEdit('{{ item.isbn }}', '{{ item.quantity }}', '{{ item.price }}')">
             ✏ Edit
           </button>
         </td>
@@ -96,10 +140,10 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="8">
+        <td colspan="9">
           <div class="empty-state">
             <div class="empty-icon">📦</div>
-            <p>No inventory records found.</p>
+            <p>No inventory records yet. Use the form above to add items.</p>
           </div>
         </td>
       </tr>
@@ -108,11 +152,16 @@
   </table>
 </div>
 
-<!-- Edit Modal (only shown when manager has a location) -->
+<!-- Edit Modal -->
 {% if location_id %}
-<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:12px;padding:32px;min-width:320px;box-shadow:0 8px 40px rgba(0,0,0,.2);">
-    <h3 style="margin-bottom:20px;font-family:var(--font-head);color:var(--brown);">Edit Inventory</h3>
+<div id="edit-modal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;
+            align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:32px;min-width:320px;
+              box-shadow:0 8px 40px rgba(0,0,0,.2);">
+    <h3 style="margin-bottom:20px;font-family:var(--font-head);color:var(--brown);">
+      Edit Inventory Item
+    </h3>
     <form method="POST" action="/inventory/update">
       <input type="hidden" name="isbn" id="edit-isbn">
       <div class="form-group">
@@ -124,7 +173,7 @@
         <input type="number" name="price" id="edit-price" min="0" step="0.01" required>
       </div>
       <div style="display:flex;gap:12px;margin-top:16px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;">Save Changes</button>
+        <button type="submit" class="btn btn-primary" style="flex:1;">Save</button>
         <button type="button" class="btn btn-outline" style="flex:1;" onclick="closeEdit()">Cancel</button>
       </div>
     </form>
@@ -135,7 +184,8 @@
 <script>
 function filterInv() {
   const q     = document.getElementById('inv-search').value.toLowerCase();
-  const store = document.getElementById('inv-store') ? document.getElementById('inv-store').value : '';
+  const storeEl = document.getElementById('inv-store');
+  const store = storeEl ? storeEl.value : '';
   const stock = document.getElementById('inv-stock').value;
   const rows  = document.querySelectorAll('#inv-table tbody tr[data-qty]');
 
@@ -154,13 +204,18 @@ function filterInv() {
 function openEdit(isbn, qty, price) {
   document.getElementById('edit-isbn').value  = isbn;
   document.getElementById('edit-qty').value   = qty;
-  document.getElementById('edit-price').value = price;
+  document.getElementById('edit-price').value = parseFloat(price).toFixed(2);
   document.getElementById('edit-modal').style.display = 'flex';
 }
 
 function closeEdit() {
   document.getElementById('edit-modal').style.display = 'none';
 }
+
+// Close modal on backdrop click
+document.getElementById('edit-modal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
+});
 </script>
 
 {% endblock %}
